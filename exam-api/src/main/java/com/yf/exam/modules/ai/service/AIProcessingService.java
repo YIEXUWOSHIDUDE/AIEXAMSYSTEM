@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.yf.exam.config.PromptConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -20,21 +21,13 @@ import java.util.*;
 public class AIProcessingService {
 
     private static final Logger logger = LoggerFactory.getLogger(AIProcessingService.class);
-    private static final RestTemplate restTemplate = createRestTemplate();
+    
+    @Autowired
+    private RestTemplate restTemplate;
     
     // Qwen3-32B API配置
     private static final String QWEN3_API_URL = "http://10.0.201.81:10031/v1/chat/completions";
     private static final String MODEL_NAME = "Qwen/Qwen2-72B-Instruct";
-    
-    private static RestTemplate createRestTemplate() {
-        RestTemplate template = new RestTemplate();
-        // Set connection and read timeouts to handle large responses
-        template.getInterceptors().add((request, body, execution) -> {
-            request.getHeaders().add("Connection", "keep-alive");
-            return execution.execute(request, body);
-        });
-        return template;
-    }
 
     /**
      * 题目提取 - 从文档中提取题目

@@ -70,7 +70,7 @@ public class JudgeController extends BaseController {
                     return super.failure("评判结果解析失败");
                 }
             } else {
-                System.err.println("❌ LLM service returned error: " + response.getStatusCode());
+                System.err.println("❌ AI service returned null response");
                 return super.failure("AI评判服务暂时不可用");
             }
 
@@ -114,7 +114,7 @@ public class JudgeController extends BaseController {
                     return super.failure("分析结果解析失败");
                 }
             } else {
-                System.err.println("❌ LLM service returned error: " + response.getStatusCode());
+                System.err.println("❌ AI service returned null response");
                 return super.failure("AI分析服务暂时不可用");
             }
 

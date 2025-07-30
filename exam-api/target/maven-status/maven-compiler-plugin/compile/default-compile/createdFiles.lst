@@ -1,15 +1,13 @@
 com\yf\exam\modules\outline\entity\QuestionOutlineMapping.class
-com\yf\exam\modules\judge\controller\JudgeController$1.class
 com\yf\exam\modules\outline\service\KnowledgeOutlineService.class
-com\yf\exam\ability\upload\service\impl\AIUploadService$2.class
 com\yf\exam\modules\qu\service\KnowledgePointService.class
 com\yf\exam\modules\outline\entity\KnowledgeOutline.class
 com\yf\exam\config\RestTemplateConfig$1.class
-com\yf\exam\ability\upload\service\impl\AIUploadService$1.class
-com\yf\exam\modules\judge\controller\JudgeController$2.class
+com\yf\exam\modules\ai\controller\AIController.class
 com\yf\exam\modules\outline\service\impl\OutlineIdentificationService$OutlineIdentificationResult.class
 com\yf\exam\ability\ai\AIExamGenerationService.class
 com\yf\exam\config\PromptConfig$DifficultyRatio.class
+com\yf\exam\modules\ai\service\AIProcessingService.class
 com\yf\exam\modules\qu\controller\KnowledgePointController.class
 com\yf\exam\ability\ai\dto\LightweightQuestionDTO.class
 com\yf\exam\modules\qu\dto\request\KnowledgePointRepoTypeReqDTO.class
@@ -30,4 +28,3 @@ com\yf\exam\modules\outline\service\impl\OutlineIdentificationService$BatchIdent
 com\yf\exam\modules\judge\controller\JudgeController$ShortAnswerJudgeDTO.class
 com\yf\exam\modules\outline\service\impl\QuestionOutlineMappingServiceImpl.class
 com\yf\exam\modules\outline\service\QuestionOutlineMappingService.class
-com\yf\exam\modules\qu\controller\LLMController.class

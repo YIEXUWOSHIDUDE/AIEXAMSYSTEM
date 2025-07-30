@@ -7,6 +7,7 @@ import com.yf.exam.modules.outline.service.QuestionOutlineMappingService;
 import com.yf.exam.modules.qu.entity.Qu;
 import com.yf.exam.modules.qu.service.QuService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
