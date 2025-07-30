@@ -20,6 +20,7 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\shiro\a
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\config\service\SysConfigService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\config\CorsConfig.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\ai\AIExamGenerationService.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\judge\controller\JudgeController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\service\impl\QuRepoServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\utils\IpUtils.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\repo\dto\request\RepoReqDTO.java
@@ -33,6 +34,7 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\config\MybatisC
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\exception\ServiceException.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\depart\entity\SysDepart.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\service\impl\ExamServiceImpl.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\impl\QuestionOutlineMappingServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\dto\export\QuImportDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\mapper\ExamMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\repo\controller\RepoController.java
@@ -41,10 +43,12 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\co
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\service\SysRoleService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\api\dto\PagingReqDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\entity\ExamRepo.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\impl\KnowledgeOutlineServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\user\book\service\impl\UserBookServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\entity\KnowledgePoint.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\dto\ext\QuDetailDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\api\dto\PagingRespDTO.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\ai\controller\AIController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\service\SysUserRoleService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\depart\dto\SysDepartDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\dto\ext\PaperQuDetailDTO.java
@@ -61,12 +65,14 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\ma
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\utils\BeanMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\service\impl\PaperServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\api\controller\BaseController.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\mapper\QuestionOutlineMappingMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\controller\QuController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\config\entity\SysConfig.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\dto\response\SysUserLoginDTO.java
-E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\controller\LLMController.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\entity\KnowledgeOutline.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\dto\PaperQuDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\user\exam\service\impl\UserExamServiceImpl.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\KnowledgeOutlineService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\upload\utils\FileUtils.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\dto\ExamRepoDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\dto\ExamDepartDTO.java
@@ -74,10 +80,13 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\se
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\dto\request\PaperListReqDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\upload\utils\PromptBuilder.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\mapper\PaperQuMapper.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\QuestionOutlineMappingService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ExamApplication.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\service\ExamRepoService.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\mapper\KnowledgeOutlineMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\enums\PaperState.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\dto\request\SysUserTokenReqDTO.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\controller\KnowledgeOutlineController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\Constant.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\utils\SpringUtils.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\repo\dto\RepoDTO.java
@@ -115,6 +124,7 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\user\ex
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\config\mapper\SysConfigMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\depart\service\impl\SysDepartServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\user\book\dto\UserBookDTO.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\entity\QuestionOutlineMapping.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\dto\SysUserDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\entity\PaperQu.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\api\dto\BaseIdRespDTO.java
@@ -130,7 +140,9 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\enum
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\system\mapper\SysDictMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\dto\PaperQuAnswerDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\dto\ExamDTO.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\impl\OutlineUploadServiceImpl.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\utils\Reflections.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\ai\service\AIProcessingService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\dto\QuRepoDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\dto\QuAnswerDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\upload\service\impl\UploadServiceImpl.java
@@ -161,6 +173,7 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\repo\dt
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\qu\controller\KnowledgePointController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\service\ExamDepartService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\upload\controller\AIUploadController.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\OutlineUploadService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\config\controller\SysConfigController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\api\dto\BaseStateReqDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\enums\CommonState.java
@@ -168,6 +181,7 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\config\ShiroCon
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\mapper\PaperQuAnswerMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\system\service\SysDictService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\utils\CronUtils.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\service\impl\OutlineIdentificationService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\shiro\jwt\JwtUtils.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\dto\SysUserRoleDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\upload\utils\MediaUtils.java
@@ -192,8 +206,10 @@ E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\ability\upload\
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\service\PaperQuAnswerService.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\exam\mapper\ExamDepartMapper.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\dto\response\PaperListRespDTO.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\controller\OutlineUploadController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\user\UserUtils.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\core\utils\passwd\PassHandler.java
+E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\outline\controller\OutlineAIController.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\paper\dto\response\ExamDetailRespDTO.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\config\SwaggerConfig.java
 E:\intership\yfexam-exam-main\exam-api\src\main\java\com\yf\exam\modules\sys\user\mapper\SysRoleMapper.java

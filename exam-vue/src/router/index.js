@@ -263,6 +263,32 @@ export const asyncRoutes = [
   },
 
   {
+    path: '/outline',
+    component: Layout,
+    redirect: '/outline/index',
+    name: 'Outline',
+    meta: {
+      title: '知识大纲',
+      icon: 'topic',
+      roles: ['sa', 'teacher']
+    },
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/outline/index'),
+        name: 'OutlineList',
+        meta: { title: '大纲管理', icon: 'topic' }
+      },
+      {
+        path: 'ai-identify',
+        component: () => import('@/views/outline/ai-identify'),
+        name: 'OutlineAIIdentify',
+        meta: { title: 'AI识别', icon: 'education' }
+      }
+    ]
+  },
+
+  {
     path: '/sys',
     component: Layout,
     redirect: '/sys/config',

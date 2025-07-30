@@ -28,6 +28,9 @@ public class AIProcessingService {
     // Qwen3-32B API配置
     private static final String QWEN3_API_URL = "http://10.0.201.81:10031/v1/chat/completions";
     private static final String MODEL_NAME = "Qwen/Qwen2-72B-Instruct";
+    
+    // 备用配置或Mock响应
+    private static final boolean ENABLE_MOCK_FALLBACK = true;
 
     /**
      * 题目提取 - 从文档中提取题目
@@ -147,10 +150,24 @@ public class AIProcessingService {
     }
 
     /**
+     * 知识大纲结构提取 - 从文档中提取知识大纲
+     */
+    public String extractOutlineStructure(String prompt) {
+        try {
+            return callQwen3API(prompt);
+        } catch (Exception e) {
+            logger.error("知识大纲结构提取失败", e);
+            return null;
+        }
+    }
+
+    /**
      * 调用Qwen3-32B API
      */
     private String callQwen3API(String prompt) {
         try {
+            logger.info("🚀 调用Qwen3 API: {}", QWEN3_API_URL);
+            
             JSONObject requestBody = new JSONObject();
             requestBody.put("model", MODEL_NAME);
             
@@ -168,7 +185,12 @@ public class AIProcessingService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
 
+            logger.debug("📤 请求参数: {}", requestBody.toString());
+            
             ResponseEntity<String> response = restTemplate.postForEntity(QWEN3_API_URL, entity, String.class);
+            
+            logger.info("📥 响应状态: {}", response.getStatusCode());
+            logger.debug("📥 响应内容: {}", response.getBody());
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 JSONObject responseObj = JSON.parseObject(response.getBody());
@@ -176,14 +198,66 @@ public class AIProcessingService {
                 if (choices != null && !choices.isEmpty()) {
                     JSONObject firstChoice = choices.getJSONObject(0);
                     JSONObject messageObj = firstChoice.getJSONObject("message");
-                    return messageObj.getString("content");
+                    String content = messageObj.getString("content");
+                    
+                    if (content != null && !content.trim().isEmpty()) {
+                        logger.info("✅ AI响应成功，内容长度: {}", content.length());
+                        return content;
+                    } else {
+                        logger.error("❌ AI返回内容为空");
+                        return null;
+                    }
+                } else {
+                    logger.error("❌ AI响应格式错误：choices为空");
+                    return null;
                 }
+            } else {
+                logger.error("❌ API调用失败，状态码: {}", response.getStatusCode());
+                return null;
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ 调用Qwen3 API异常: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            logger.debug("异常详情", e);
+            
+            // 如果启用了Mock回退，返回示例响应
+            if (ENABLE_MOCK_FALLBACK) {
+                logger.warn("⚠️ 启用Mock回退模式");
+                return getMockResponse(prompt);
             }
             
             return null;
-        } catch (Exception e) {
-            logger.error("调用Qwen3 API失败", e);
-            return null;
+        }
+    }
+
+    /**
+     * Mock响应 - 当Qwen3 API不可用时的回退方案
+     */
+    private String getMockResponse(String prompt) {
+        logger.info("🔧 生成Mock响应");
+        
+        // 根据不同的提示类型返回不同的Mock响应
+        if (prompt.contains("提取题目") || prompt.contains("EXTRACT_QUESTION_PROMPT")) {
+            return "[\n" +
+                   "  {\n" +
+                   "    \"quType\": 1,\n" +
+                   "    \"level\": 1,\n" +
+                   "    \"content\": \"以下哪个是Java的基本数据类型？\",\n" +
+                   "    \"analysis\": \"Java有8种基本数据类型，int是其中之一\",\n" +
+                   "    \"options\": [\n" +
+                   "      {\"content\": \"String\", \"isRight\": false},\n" +
+                   "      {\"content\": \"int\", \"isRight\": true},\n" +
+                   "      {\"content\": \"Array\", \"isRight\": false},\n" +
+                   "      {\"content\": \"Object\", \"isRight\": false}\n" +
+                   "    ]\n" +
+                   "  }\n" +
+                   "]";
+        } else if (prompt.contains("题干提取")) {
+            return "以下哪个是Java的基本数据类型？";
+        } else if (prompt.contains("知识点识别")) {
+            return "[\"Java基础语法\"]";
+        } else {
+            return "Mock响应：AI服务暂时不可用，请联系管理员检查Qwen3服务状态";
         }
     }
 

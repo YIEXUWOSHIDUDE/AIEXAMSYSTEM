@@ -27,6 +27,7 @@
           <el-button type="primary" @click="handleFilter">查询</el-button>
           <el-button @click="resetFilter">重置</el-button>
           <el-button type="success" @click="handleCreate">新建大纲</el-button>
+          <el-button type="warning" @click="handleUpload">上传大纲文档</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -88,6 +89,63 @@
         </el-button>
       </div>
     </el-dialog>
+
+    <!-- 上传大纲文档对话框 -->
+    <el-dialog title="上传知识大纲文档" :visible.sync="uploadDialogVisible" width="600px">
+      <div class="upload-info">
+        <p>支持上传Word文档(.docx)或PDF文件(.pdf)，系统将自动解析文档中的知识大纲结构。</p>
+        <p><strong>文档格式要求：</strong></p>
+        <ul>
+          <li>包含学科和年级信息</li>
+          <li>清晰的知识点层次结构</li>
+          <li>每个知识点单独一行或段落</li>
+        </ul>
+      </div>
+      
+      <el-form :model="uploadForm" label-width="80px" style="margin-top: 20px;">
+        <el-form-item label="学科">
+          <el-select v-model="uploadForm.subject" placeholder="请选择学科" style="width: 100%">
+            <el-option label="数学" value="数学" />
+            <el-option label="物理" value="物理" />
+            <el-option label="化学" value="化学" />
+            <el-option label="语文" value="语文" />
+            <el-option label="英语" value="英语" />
+            <el-option label="生物" value="生物" />
+            <el-option label="历史" value="历史" />
+            <el-option label="地理" value="地理" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="年级">
+          <el-select v-model="uploadForm.grade" placeholder="请选择年级" style="width: 100%">
+            <el-option label="七年级" value="七年级" />
+            <el-option label="八年级" value="八年级" />
+            <el-option label="九年级" value="九年级" />
+            <el-option label="高一" value="高一" />
+            <el-option label="高二" value="高二" />
+            <el-option label="高三" value="高三" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      
+      <el-upload 
+        class="upload-demo"
+        drag
+        :action="uploadAction"
+        :data="uploadForm"
+        :on-success="handleUploadSuccess"
+        :on-error="handleUploadError"
+        :before-upload="beforeUpload"
+        :show-file-list="false"
+        accept=".docx,.pdf">
+        <i class="el-icon-upload"></i>
+        <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+        <div class="el-upload__tip" slot="tip">只能上传docx/pdf文件，且不超过10MB</div>
+      </el-upload>
+      
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="uploadDialogVisible = false">取消</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -118,7 +176,13 @@ export default {
         subject: [{ required: true, message: '请选择学科', trigger: 'change' }],
         grade: [{ required: true, message: '请选择年级', trigger: 'change' }],
         knowledgePoint: [{ required: true, message: '请输入知识点名称', trigger: 'blur' }]
-      }
+      },
+      uploadDialogVisible: false,
+      uploadForm: {
+        subject: '',
+        grade: ''
+      },
+      uploadAction: process.env.VUE_APP_BASE_API + '/exam/api/outline/upload'
     }
   },
   created() {
@@ -235,6 +299,46 @@ export default {
     formatTime(time) {
       if (!time) return ''
       return new Date(time).toLocaleString()
+    },
+    handleUpload() {
+      this.uploadForm = {
+        subject: '',
+        grade: ''
+      }
+      this.uploadDialogVisible = true
+    },
+    beforeUpload(file) {
+      const isDocxOrPdf = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.type === 'application/pdf'
+      const isLt10M = file.size / 1024 / 1024 < 10
+
+      if (!isDocxOrPdf) {
+        this.$message.error('只能上传 DOCX 或 PDF 格式的文件!')
+      }
+      if (!isLt10M) {
+        this.$message.error('上传文件大小不能超过 10MB!')
+      }
+      if (!this.uploadForm.subject || !this.uploadForm.grade) {
+        this.$message.error('请先选择学科和年级!')
+        return false
+      }
+      return isDocxOrPdf && isLt10M
+    },
+    handleUploadSuccess(response) {
+      this.uploadDialogVisible = false
+      if (response.code === 0) {
+        this.$notify({
+          title: '成功',
+          message: `成功解析并导入了 ${response.data.importedCount} 个知识点`,
+          type: 'success',
+          duration: 3000
+        })
+        this.getList()
+      } else {
+        this.$message.error(response.msg || '上传失败')
+      }
+    },
+    handleUploadError() {
+      this.$message.error('上传失败，请重试')
     }
   }
 }
@@ -243,5 +347,26 @@ export default {
 <style scoped>
 .filter-container {
   margin-bottom: 20px;
+}
+
+.upload-info {
+  background-color: #f4f4f5;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.upload-info p {
+  margin: 0 0 10px 0;
+  color: #606266;
+}
+
+.upload-info ul {
+  margin: 5px 0 0 20px;
+  color: #909399;
+}
+
+.upload-demo {
+  margin-top: 20px;
 }
 </style>
