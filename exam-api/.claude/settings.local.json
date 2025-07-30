@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(mvn:*)",
+      "Bash(python:*)",
+      "Bash(uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(where:*)",
+      "Bash(C:/Windows/System32/taskkill.exe /F /PID 25124)",
+      "Bash(powershell:*)"
+    ],
+    "deny": []
+  }
+}

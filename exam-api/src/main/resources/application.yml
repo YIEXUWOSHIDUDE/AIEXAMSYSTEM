@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: yf-exam-lite
+  profiles:
+      active: dev
+  main:
+    allow-bean-definition-overriding: true
+  jmx:
+    enabled: true
+server:
+  port: 8101
+  # 启用服务端压缩
+  compression:
+    enabled: true
+    min-response-size: 10
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+
+# 管理端点配置
+management:
+  endpoints:
+    jmx:
+      exposure:
+        include: "*"
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
