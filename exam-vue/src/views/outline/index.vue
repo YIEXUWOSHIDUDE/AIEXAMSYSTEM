@@ -79,7 +79,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="知识点" prop="knowledgePoint">
-          <el-input v-model="temp.knowledgePoint" placeholder="请输入知识点名称" />
+          <el-input 
+            v-model="temp.knowledgePoint" 
+            type="textarea" 
+            :rows="4"
+            placeholder="请输入知识点名称，多个知识点请换行输入" />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -167,7 +171,6 @@ export default {
       dialogFormVisible: false,
       dialogStatus: '',
       temp: {
-        id: undefined,
         subject: '',
         grade: '',
         knowledgePoint: ''
@@ -225,7 +228,6 @@ export default {
     },
     resetTemp() {
       this.temp = {
-        id: undefined,
         subject: '',
         grade: '',
         knowledgePoint: ''
@@ -242,16 +244,50 @@ export default {
     createData() {
       this.$refs['dataForm'].validate((valid) => {
         if (valid) {
-          createOutline(this.temp).then(() => {
-            this.dialogFormVisible = false
-            this.$notify({
-              title: '成功',
-              message: '创建成功',
-              type: 'success',
-              duration: 2000
+          // 检查是否是多个知识点（按换行分割）
+          const knowledgePoints = this.temp.knowledgePoint.split('\n').filter(point => point.trim())
+          
+          if (knowledgePoints.length === 1) {
+            // 单个知识点
+            createOutline(this.temp).then(() => {
+              this.dialogFormVisible = false
+              this.$notify({
+                title: '成功',
+                message: '创建成功',
+                type: 'success',
+                duration: 2000
+              })
+              this.getList()
             })
-            this.getList()
-          })
+          } else {
+            // 多个知识点批量创建
+            const promises = knowledgePoints.map(point => {
+              const outline = {
+                subject: this.temp.subject,
+                grade: this.temp.grade,
+                knowledgePoint: point.trim()
+              }
+              return createOutline(outline)
+            })
+            
+            Promise.all(promises).then(() => {
+              this.dialogFormVisible = false
+              this.$notify({
+                title: '成功',
+                message: `成功创建${knowledgePoints.length}个知识点`,
+                type: 'success',
+                duration: 2000
+              })
+              this.getList()
+            }).catch(() => {
+              this.$notify({
+                title: '错误',
+                message: '部分知识点创建失败',
+                type: 'error',
+                duration: 2000
+              })
+            })
+          }
         }
       })
     },

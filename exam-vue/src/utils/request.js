@@ -171,3 +171,5 @@ export function post(url, data = {}) {
       })
   })
 }
+
+export default instance

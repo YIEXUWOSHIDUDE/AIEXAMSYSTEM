@@ -77,13 +77,6 @@ public class KnowledgeOutlineController extends BaseController {
     @PostMapping("/create")
     public ApiRest<String> create(@RequestBody KnowledgeOutline outline) {
         try {
-            // 检查是否已存在相同的大纲
-            KnowledgeOutline existing = knowledgeOutlineService.getByKnowledgePoint(
-                outline.getSubject(), outline.getGrade(), outline.getKnowledgePoint());
-            if (existing != null) {
-                return super.failure("该知识点已存在");
-            }
-
             // 生成大纲编码
             String outlineCode = generateOutlineCode(outline.getSubject(), outline.getGrade());
             outline.setOutlineCode(outlineCode);
@@ -147,7 +140,8 @@ public class KnowledgeOutlineController extends BaseController {
     private String generateOutlineCode(String subject, String grade) {
         String subjectCode = getSubjectCode(subject);
         long timestamp = System.currentTimeMillis();
-        return subjectCode + "_" + timestamp;
+        int random = (int)(Math.random() * 1000);
+        return subjectCode + "_" + timestamp + "_" + random;
     }
 
     /**
