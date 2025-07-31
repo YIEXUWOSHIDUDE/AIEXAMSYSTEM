@@ -164,6 +164,7 @@ public class AIProcessingService {
     private String callQwen3API(String prompt) {
         try {
             logger.info("🚀 调用Qwen3 API: {}", QWEN3_API_URL);
+            logger.info("🔍 使用模型: {}", MODEL_NAME);
             
             JSONObject requestBody = new JSONObject();
             requestBody.put("model", MODEL_NAME);
@@ -180,16 +181,21 @@ public class AIProcessingService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer EMPTY");
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
 
+            logger.info("📤 发送请求到: {}", QWEN3_API_URL);
             logger.debug("📤 请求参数: {}", requestBody.toString());
             
             ResponseEntity<String> response = restTemplate.postForEntity(QWEN3_API_URL, entity, String.class);
             
             logger.info("📥 响应状态: {}", response.getStatusCode());
-            logger.debug("📥 响应内容: {}", response.getBody());
+            logger.info("📥 响应Headers: {}", response.getHeaders());
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                logger.info("✅ HTTP请求成功，解析响应内容");
+                logger.debug("📥 完整响应: {}", response.getBody());
+                
                 JSONObject responseObj = JSON.parseObject(response.getBody());
                 JSONArray choices = responseObj.getJSONArray("choices");
                 if (choices != null && !choices.isEmpty()) {
@@ -205,18 +211,28 @@ public class AIProcessingService {
                         return null;
                     }
                 } else {
-                    logger.error("❌ AI响应格式错误：choices为空");
+                    logger.error("❌ AI响应格式错误：choices为空，完整响应: {}", response.getBody());
                     return null;
                 }
             } else {
-                logger.error("❌ API调用失败，状态码: {}", response.getStatusCode());
-                return null;
+                logger.error("❌ API调用失败");
+                logger.error("状态码: {}", response.getStatusCode());
+                logger.error("响应体: {}", response.getBody());
+                throw new RuntimeException("AI服务返回错误状态: " + response.getStatusCode());
             }
             
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            logger.error("❌ 无法连接到AI服务器: {}", QWEN3_API_URL);
+            logger.error("连接错误: {}", e.getMessage());
+            throw new RuntimeException("AI服务连接失败: 服务器不可达或服务未启动");
+        } catch (org.springframework.web.client.HttpServerErrorException e) {
+            logger.error("❌ AI服务器内部错误: {}", e.getStatusCode());
+            logger.error("错误响应: {}", e.getResponseBodyAsString());
+            throw new RuntimeException("AI服务内部错误: " + e.getStatusCode());
         } catch (Exception e) {
-            logger.error("❌ Qwen3 API服务不可用: {} - {}", e.getClass().getSimpleName(), e.getMessage());
-            logger.error("请检查Qwen3服务状态: {}", QWEN3_API_URL);
-            return null;
+            logger.error("❌ Qwen3 API调用异常: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            logger.error("详细错误: ", e);
+            throw new RuntimeException("AI服务调用失败: " + e.getMessage());
         }
     }
 

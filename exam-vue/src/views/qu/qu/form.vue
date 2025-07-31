@@ -71,7 +71,7 @@
                 <el-option label="历史" value="历史" />
                 <el-option label="地理" value="地理" />
               </el-select>
-              <el-select v-model="outlineGrade" placeholder="选择年级" @change="loadOutlines" size="small" style="width: 100px; margin-right: 10px;">
+              <el-select v-model="outlineGrade" placeholder="选择年级" @change="onOutlineGradeChange" size="small" style="width: 100px; margin-right: 10px;">
                 <el-option label="七年级" value="七年级" />
                 <el-option label="八年级" value="八年级" />
                 <el-option label="九年级" value="九年级" />
@@ -83,16 +83,6 @@
                 <i class="el-icon-magic-stick"></i>
                 AI识别大纲
               </el-button>
-            </div>
-            <div class="outline-select" style="margin-top: 10px;">
-              <el-select v-model="postForm.outlineId" placeholder="选择知识大纲" clearable style="width: 100%;">
-                <el-option
-                  v-for="outline in availableOutlines"
-                  :key="outline.id"
-                  :label="`${outline.subject} - ${outline.grade} - ${outline.knowledgePoint}`"
-                  :value="outline.id"
-                />
-              </el-select>
             </div>
           </div>
         </el-form-item>
@@ -110,17 +100,22 @@
               </el-tag>
             </div>
             <div class="knowledge-input" v-if="knowledgePointsArray.length === 0">
-              <el-input
+              <el-select
                 v-model="newKnowledgePoint"
-                placeholder="输入一个知识点"
-                @keyup.enter.native="addKnowledgePoint"
+                placeholder="选择知识点"
+                filterable
+                :loading="knowledgePointsLoading"
+                @change="addKnowledgePoint"
                 size="small"
-                style="width: 200px; margin-right: 10px;" />
-              <el-button size="small" @click="addKnowledgePoint">设置</el-button>
-              <el-button size="small" type="primary" @click="identifyKnowledgePoints" :loading="knowledgeIdentifying">
-                <i class="el-icon-magic-stick"></i>
-                AI识别
-              </el-button>
+                style="width: 300px; margin-right: 10px;"
+                clearable>
+                <el-option
+                  v-for="point in availableKnowledgePoints"
+                  :key="point.id"
+                  :label="point.knowledgePoint"
+                  :value="point.knowledgePoint"
+                />
+              </el-select>
             </div>
           </div>
         </el-form-item>
@@ -220,7 +215,7 @@ import { fetchDetail, saveData } from '@/api/qu/qu'
 import { post } from '@/utils/request'
 import RepoSelect from '@/components/RepoSelect'
 import FileUpload from '@/components/FileUpload'
-import { getOutlinesBySubjectAndGrade, identifySingleOutline } from '@/api/outline'
+import { getOutlineList, getOutlinesBySubjectAndGrade, identifySingleOutline } from '@/api/outline'
 
 export default {
   name: 'QuDetail',
@@ -270,7 +265,10 @@ export default {
       // New data for enhanced features
       newKnowledgePoint: '',
       stemExtracting: false,
-      knowledgeIdentifying: false,
+      
+      // Knowledge point data
+      availableKnowledgePoints: [],
+      knowledgePointsLoading: false,
       
       // Outline selection data
       outlineSubject: '',
@@ -355,6 +353,48 @@ export default {
       this.postForm.extractionStatus = 2 // Mark as manually edited
     },
 
+    // Load knowledge points for selected subject and grade
+    async loadKnowledgePoints() {
+      if (!this.outlineSubject || !this.outlineGrade) {
+        this.availableKnowledgePoints = []
+        return
+      }
+      
+      console.log('Loading knowledge points for:', this.outlineSubject, this.outlineGrade)
+      this.knowledgePointsLoading = true
+      try {
+        const response = await getOutlineList()
+        console.log('API response:', response)
+        
+        if (response && response.data) {
+          // Filter by subject and grade
+          const filteredKnowledgePoints = response.data
+            .filter(item => 
+              item.subject === this.outlineSubject &&
+              item.grade === this.outlineGrade
+            )
+            .map(item => ({
+              id: item.id,
+              knowledgePoint: item.knowledgePoint
+            }))
+          
+          console.log('Filtered knowledge points:', filteredKnowledgePoints)
+          
+          // Remove duplicates
+          const uniquePoints = filteredKnowledgePoints.filter((point, index, self) => 
+            index === self.findIndex(p => p.knowledgePoint === point.knowledgePoint)
+          )
+          
+          this.availableKnowledgePoints = uniquePoints
+          console.log('Available knowledge points:', this.availableKnowledgePoints)
+        }
+      } catch (error) {
+        console.error('Knowledge point loading failed:', error)
+      } finally {
+        this.knowledgePointsLoading = false
+      }
+    },
+
     async extractStem() {
       if (!this.postForm.content.trim()) {
         this.$message.warning('请先输入题目内容')
@@ -363,7 +403,7 @@ export default {
 
       this.stemExtracting = true
       try {
-        const response = await post('/api/llm/extractstem', {
+        const response = await post('/api/ai/extract-stem', {
           questionContent: this.postForm.content
         })
         
@@ -385,45 +425,18 @@ export default {
       this.postForm.extractionStatus = 0 // Mark as unprocessed
     },
 
-    async identifyKnowledgePoints() {
-      if (!this.postForm.content.trim()) {
-        this.$message.warning('请先输入题目内容')
-        return
-      }
-
-      this.knowledgeIdentifying = true
-      try {
-        const response = await post('/api/llm/identifyknowledge', {
-          questionContent: this.postForm.content
-        })
-        
-        if (response.data) {
-          const identified = JSON.parse(response.data)
-          
-          if (Array.isArray(identified) && identified.length > 0) {
-            // Only use the first knowledge point
-            this.$set(this.postForm, 'knowledgePoints', JSON.stringify([identified[0]]))
-            this.postForm.extractionStatus = 1 // Mark as AI extracted
-            this.$message.success(`识别出知识点: ${identified[0]}`)
-          } else {
-            this.$message.warning('未能识别出有效的知识点')
-          }
-        } else {
-          this.$message.warning('AI服务返回空数据')
-        }
-      } catch (error) {
-        console.error('Knowledge identification failed:', error)
-        this.$message.error('知识点识别失败: ' + (error.response && error.response.data ? error.response.data : error.message))
-      } finally {
-        this.knowledgeIdentifying = false
-      }
-    },
 
     // Outline related methods
     onOutlineSubjectChange() {
       this.outlineGrade = ''
       this.availableOutlines = []
+      this.availableKnowledgePoints = []
       this.postForm.outlineId = ''
+    },
+
+    onOutlineGradeChange() {
+      this.loadOutlines()
+      this.loadKnowledgePoints()
     },
 
     async loadOutlines() {
@@ -463,8 +476,14 @@ export default {
 
         if (response.success && response.data) {
           const result = response.data
-          if (result.outlineId) {
+          if (result.outlineId && result.knowledgePoint) {
+            // Set outline ID
             this.postForm.outlineId = result.outlineId
+            
+            // Set knowledge point
+            this.postForm.knowledgePoints = JSON.stringify([result.knowledgePoint])
+            this.postForm.extractionStatus = 1 // Mark as AI extracted
+            
             this.$message.success(`AI识别成功: ${result.knowledgePoint}`)
             
             // Load outlines to show the selection
