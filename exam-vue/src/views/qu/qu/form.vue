@@ -31,6 +31,7 @@
 
         </el-form-item>
 
+
         <el-form-item label="归属题库" prop="repoIds">
 
           <repo-select v-model="postForm.repoIds" :multi="true" />
@@ -99,7 +100,7 @@
                 {{ knowledgePointsArray[0] }}
               </el-tag>
             </div>
-            <div class="knowledge-input" v-if="knowledgePointsArray.length === 0">
+            <div class="knowledge-input" v-if="knowledgePointsArray.length === 0" style="display: flex; align-items: center;">
               <el-select
                 v-model="newKnowledgePoint"
                 placeholder="选择知识点"
@@ -116,6 +117,14 @@
                   :value="point.knowledgePoint"
                 />
               </el-select>
+              <el-button 
+                size="small" 
+                type="success" 
+                @click="identifyKnowledgePoint" 
+                :loading="knowledgeIdentifying">
+                <i class="el-icon-magic-stick"></i>
+                AI识别知识点
+              </el-button>
             </div>
           </div>
         </el-form-item>
@@ -259,7 +268,9 @@ export default {
         questionStem: '',
         knowledgePoints: '[]',
         extractionStatus: 0,
-        outlineId: ''
+        outlineId: '',
+        subject: '',
+        grade: ''
       },
       
       // New data for enhanced features
@@ -269,6 +280,7 @@ export default {
       // Knowledge point data
       availableKnowledgePoints: [],
       knowledgePointsLoading: false,
+      knowledgeIdentifying: false,
       
       // Outline selection data
       outlineSubject: '',
@@ -342,6 +354,8 @@ export default {
       if (this.newKnowledgePoint.trim()) {
         // Only allow one knowledge point
         this.postForm.knowledgePoints = JSON.stringify([this.newKnowledgePoint.trim()])
+        this.postForm.subject = this.outlineSubject
+        this.postForm.grade = this.outlineGrade
         this.postForm.extractionStatus = 2 // Mark as manually edited
         this.newKnowledgePoint = ''
       }
@@ -367,21 +381,32 @@ export default {
         console.log('API response:', response)
         
         if (response && response.data) {
-          // Filter by subject and grade
-          const filteredKnowledgePoints = response.data
+          // Filter by subject and grade and split knowledge points
+          const allKnowledgePoints = []
+          response.data
             .filter(item => 
               item.subject === this.outlineSubject &&
               item.grade === this.outlineGrade
             )
-            .map(item => ({
-              id: item.id,
-              knowledgePoint: item.knowledgePoint
-            }))
+            .forEach(item => {
+              // Split knowledge points by spaces
+              if (item.knowledgePoint && item.knowledgePoint.trim()) {
+                const points = item.knowledgePoint.trim().split(/\s+/)
+                points.forEach(point => {
+                  if (point.trim()) {
+                    allKnowledgePoints.push({
+                      id: item.id + '_' + point, // Create unique ID
+                      knowledgePoint: point.trim()
+                    })
+                  }
+                })
+              }
+            })
           
-          console.log('Filtered knowledge points:', filteredKnowledgePoints)
+          console.log('Split knowledge points:', allKnowledgePoints)
           
           // Remove duplicates
-          const uniquePoints = filteredKnowledgePoints.filter((point, index, self) => 
+          const uniquePoints = allKnowledgePoints.filter((point, index, self) => 
             index === self.findIndex(p => p.knowledgePoint === point.knowledgePoint)
           )
           
@@ -480,8 +505,10 @@ export default {
             // Set outline ID
             this.postForm.outlineId = result.outlineId
             
-            // Set knowledge point
+            // Set knowledge point and record subject/grade from outline selection
             this.postForm.knowledgePoints = JSON.stringify([result.knowledgePoint])
+            this.postForm.subject = this.outlineSubject
+            this.postForm.grade = this.outlineGrade
             this.postForm.extractionStatus = 1 // Mark as AI extracted
             
             this.$message.success(`AI识别成功: ${result.knowledgePoint}`)
@@ -502,9 +529,68 @@ export default {
       }
     },
 
+    async identifyKnowledgePoint() {
+      if (!this.postForm.content.trim()) {
+        this.$message.warning('请先输入题目内容')
+        return
+      }
+
+      this.knowledgeIdentifying = true
+      try {
+        // Use constrained API if subject/grade selected, otherwise use basic API
+        let apiEndpoint = '/api/ai/identify-knowledge'
+        let requestData = { questionContent: this.postForm.content }
+        
+        if (this.outlineSubject && this.outlineGrade) {
+          apiEndpoint = '/api/ai/identify-knowledge-with-constraints'
+          requestData = {
+            questionContent: this.postForm.content,
+            subject: this.outlineSubject,
+            grade: this.outlineGrade
+          }
+        }
+        
+        const response = await post(apiEndpoint, requestData)
+        
+        if (response.data) {
+          // Simple text processing - no complex JSON parsing needed
+          const knowledgePoint = response.data.trim()
+          if (knowledgePoint && knowledgePoint.length > 0) {
+            // Set the knowledge point (stored as JSON array for consistency)
+            this.postForm.knowledgePoints = JSON.stringify([knowledgePoint])
+            this.postForm.subject = this.outlineSubject
+            this.postForm.grade = this.outlineGrade
+            this.postForm.extractionStatus = 1 // Mark as AI extracted
+            this.$message.success(`AI识别成功: ${knowledgePoint}`)
+            console.log('Knowledge point identified:', knowledgePoint)
+          } else {
+            this.$message.warning('AI返回了空的知识点')
+            console.warn('Empty AI response for knowledge point identification')
+          }
+        } else {
+          this.$message.warning('AI未能识别出知识点')
+          console.warn('No data in AI response')
+        }
+      } catch (error) {
+        console.error('Knowledge point identification failed:', error)
+        this.$message.error('知识点识别失败: ' + (error.response && error.response.data ? error.response.data.msg || error.response.data : error.message))
+      } finally {
+        this.knowledgeIdentifying = false
+      }
+    },
+
     fetchData(id) {
       fetchDetail(id).then(response => {
         this.postForm = response.data
+        
+        // If question has subject/grade, set outline selection to match
+        if (this.postForm.subject && this.postForm.grade) {
+          this.outlineSubject = this.postForm.subject
+          this.outlineGrade = this.postForm.grade
+          // Load knowledge points for the selected subject/grade
+          this.loadKnowledgePoints()
+          this.loadOutlines()
+        }
       })
     },
     submitForm() {

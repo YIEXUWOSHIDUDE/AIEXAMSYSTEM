@@ -59,4 +59,10 @@ public class QuDTO implements Serializable {
     @ApiModelProperty(value = "提取状态：0=未处理，1=已提取，2=手动编辑")
     private Integer extractionStatus;
     
+    @ApiModelProperty(value = "学科")
+    private String subject;
+    
+    @ApiModelProperty(value = "年级")
+    private String grade;
+    
 }

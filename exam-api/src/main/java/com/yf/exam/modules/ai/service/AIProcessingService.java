@@ -10,8 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
+import com.yf.exam.modules.outline.service.KnowledgeOutlineService;
+import java.util.stream.Collectors;
 import java.util.*;
+import java.util.Arrays;
 
 /**
  * 统一AI处理服务 - 集成原LLM模块功能
@@ -25,6 +27,9 @@ public class AIProcessingService {
     @Autowired
     private RestTemplate restTemplate;
     
+    @Autowired
+    private KnowledgeOutlineService knowledgeOutlineService;
+    
     // Qwen3-32B API配置
     private static final String QWEN3_API_URL = "http://10.0.201.81:10031/v1/chat/completions";
     private static final String MODEL_NAME = "qwen3_32b";
@@ -35,6 +40,24 @@ public class AIProcessingService {
     public String extractQuestions(String content) {
         try {
             String prompt = PromptConfig.EXTRACT_QUESTION_PROMPT + "\n\n文档内容：\n" + content;
+            return callQwen3API(prompt);
+        } catch (Exception e) {
+            logger.error("题目提取失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 题目提取 - 从文档中提取题目（带知识点约束）
+     */
+    public String extractQuestions(String content, String subject, String grade) {
+        try {
+            // 获取该学科年级的所有知识点作为约束
+            List<String> validKnowledgePoints = getValidKnowledgePoints(subject, grade);
+            
+            String prompt = PromptConfig.EXTRACT_QUESTION_WITH_CONSTRAINTS_PROMPT 
+                + "\n\n可选知识点：" + String.join("、", validKnowledgePoints)
+                + "\n\n文档内容：\n" + content;
             return callQwen3API(prompt);
         } catch (Exception e) {
             logger.error("题目提取失败", e);
@@ -86,26 +109,56 @@ public class AIProcessingService {
      */
     public String identifyKnowledge(String questionContent) {
         try {
+            logger.info("🎯 开始知识点识别，题目内容长度: {}", questionContent.length());
             String prompt = PromptConfig.KNOWLEDGE_POINT_PROMPT + "\n\n题目内容：\n" + questionContent;
-            return callQwen3API(prompt);
+            logger.info("📝 知识点识别提示词: {}", prompt.length() > 200 ? prompt.substring(0, 200) + "..." : prompt);
+            
+            String result = callQwen3API(prompt);
+            
+            if (result != null) {
+                logger.info("✅ 知识点识别AI响应成功，内容长度: {}", result.length());
+                logger.info("📄 AI返回内容: {}", result);
+                return result;
+            } else {
+                logger.error("❌ 知识点识别AI返回null");
+                return null;
+            }
         } catch (Exception e) {
-            logger.error("知识点识别失败", e);
+            logger.error("❌ 知识点识别失败", e);
             return null;
         }
     }
 
     /**
-     * 增强提取
+     * 知识点识别 - 带学科年级约束
      */
-    public String enhancedExtract(String content) {
+    public String identifyKnowledgeWithConstraints(String questionContent, String subject, String grade) {
         try {
-            String prompt = PromptConfig.EXTRACT_QUESTION_PROMPT + "\n\n【增强模式】\n" + content;
-            return callQwen3API(prompt);
+            logger.info("🎯 开始约束知识点识别，学科: {}, 年级: {}", subject, grade);
+            
+            // 获取该学科年级的所有知识点作为约束
+            List<String> validKnowledgePoints = getValidKnowledgePoints(subject, grade);
+            
+            String prompt = PromptConfig.KNOWLEDGE_POINT_PROMPT 
+                + "\n\n【重要约束】：知识点必须从以下列表中选择，不能自创：\n"
+                + String.join("、", validKnowledgePoints)
+                + "\n\n题目内容：\n" + questionContent;
+            
+            String result = callQwen3API(prompt);
+            
+            if (result != null) {
+                logger.info("✅ 约束知识点识别成功: {}", result);
+                return result;
+            } else {
+                logger.error("❌ 约束知识点识别AI返回null");
+                return null;
+            }
         } catch (Exception e) {
-            logger.error("增强提取失败", e);
+            logger.error("❌ 约束知识点识别失败", e);
             return null;
         }
     }
+
 
     /**
      * 简答题判分
@@ -155,6 +208,46 @@ public class AIProcessingService {
         } catch (Exception e) {
             logger.error("知识大纲结构提取失败", e);
             return null;
+        }
+    }
+
+    /**
+     * 知识大纲结构提取 - 从文档中提取知识大纲（带知识点约束）
+     */
+    public String extractOutlineStructure(String prompt, String subject, String grade) {
+        try {
+            // 获取该学科年级的所有知识点作为约束
+            List<String> validKnowledgePoints = getValidKnowledgePoints(subject, grade);
+            
+            String constrainedPrompt = prompt;
+            if (!validKnowledgePoints.isEmpty()) {
+                constrainedPrompt += "\n\n可选知识点约束：" + String.join("、", validKnowledgePoints)
+                    + "\n注意：提取的知识点必须从上述列表中选择，不能自创新的知识点。";
+            }
+            
+            return callQwen3API(constrainedPrompt);
+        } catch (Exception e) {
+            logger.error("知识大纲结构提取失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 获取有效的知识点列表
+     */
+    private List<String> getValidKnowledgePoints(String subject, String grade) {
+        try {
+            return knowledgeOutlineService.getBySubjectAndGrade(subject, grade)
+                .stream()
+                .map(outline -> outline.getKnowledgePoint())
+                .filter(kp -> kp != null && !kp.trim().isEmpty())
+                .flatMap(kp -> Arrays.stream(kp.split("\\s+"))) // Split by spaces
+                .filter(point -> !point.trim().isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("获取知识点列表失败", e);
+            return new ArrayList<>();
         }
     }
 

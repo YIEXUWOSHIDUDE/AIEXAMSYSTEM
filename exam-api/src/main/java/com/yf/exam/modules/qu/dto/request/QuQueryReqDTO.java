@@ -37,5 +37,10 @@ public class QuQueryReqDTO implements Serializable {
     @ApiModelProperty(value = "排除ID列表")
     private List<String> excludes;
 
+    @ApiModelProperty(value = "学科")
+    private String subject;
+
+    @ApiModelProperty(value = "年级")
+    private String grade;
     
 }

@@ -90,4 +90,16 @@ public class Qu extends Model<Qu> {
     @TableField("extraction_status")
     private Integer extractionStatus;
     
+    /**
+     * 学科
+     */
+    @TableField("subject")
+    private String subject;
+    
+    /**
+     * 年级
+     */
+    @TableField("grade")
+    private String grade;
+    
 }

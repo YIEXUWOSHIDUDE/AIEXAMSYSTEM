@@ -8,6 +8,34 @@
     >
       <div class="upload-container">
         
+        <!-- 学科年级选择区域 -->
+        <div class="subject-grade-selection" style="margin-bottom: 20px;">
+          <el-form :inline="true" label-width="60px">
+            <el-form-item label="学科" required>
+              <el-select v-model="selectedSubject" placeholder="选择学科" style="width: 120px;">
+                <el-option label="数学" value="数学" />
+                <el-option label="物理" value="物理" />
+                <el-option label="化学" value="化学" />
+                <el-option label="语文" value="语文" />
+                <el-option label="英语" value="英语" />
+                <el-option label="生物" value="生物" />
+                <el-option label="历史" value="历史" />
+                <el-option label="地理" value="地理" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="年级" required>
+              <el-select v-model="selectedGrade" placeholder="选择年级" style="width: 120px;">
+                <el-option label="七年级" value="七年级" />
+                <el-option label="八年级" value="八年级" />
+                <el-option label="九年级" value="九年级" />
+                <el-option label="高一" value="高一" />
+                <el-option label="高二" value="高二" />
+                <el-option label="高三" value="高三" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </div>
+        
         <!-- 上传区域 -->
         <div class="upload-area">
           <el-upload
@@ -159,6 +187,10 @@ export default {
       dialogVisible: false,
       dialogTitle: 'AI智能导入题目',
       
+      // 学科年级选择
+      selectedSubject: '',
+      selectedGrade: '',
+      
       // 上传相关
       uploadUrl: `${process.env.VUE_APP_BASE_API}/exam/api/ai-upload/upload`,
       headers: {},
@@ -220,6 +252,16 @@ export default {
 
     // 上传前检查
     beforeUpload(file) {
+      // 验证学科年级选择
+      if (!this.selectedSubject) {
+        this.$message.error('请先选择学科！')
+        return false
+      }
+      if (!this.selectedGrade) {
+        this.$message.error('请先选择年级！')
+        return false
+      }
+      
       const isValidSize = file.size / 1024 / 1024 < 50 // 50MB
       const isValidType = this.isValidFileType(file.name)
       
@@ -268,7 +310,7 @@ export default {
       const file = fileList[0].raw
       console.log('准备上传文件:', file)
       
-      aiUploadQuestions(file).then(response => {
+      aiUploadQuestions(file, this.selectedSubject, this.selectedGrade).then(response => {
         console.log('上传成功:', response)
         this.handleUploadSuccess(response)
       }).catch(error => {
@@ -433,6 +475,10 @@ export default {
       this.resultTitle = ''
       this.resultType = ''
       this.resultDescription = ''
+      
+      // 重置学科年级选择
+      this.selectedSubject = ''
+      this.selectedGrade = ''
       
       // 清空文件列表
       if (this.$refs.upload) {

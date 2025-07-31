@@ -73,93 +73,29 @@ public class AIUploadService {
      * 2. 调用大模型，拆题 - 通过HTTP接口调用LLM模块（增强版）
      */
     public JSONArray callAiExtractQuestions(String textContent) {
-        try {
-            // First try enhanced extraction
-            return callEnhancedExtraction(textContent);
-        } catch (Exception e) {
-            System.err.println("Enhanced extraction failed, falling back to original method: " + e.getMessage());
-            // Fallback to original extraction
-            return callOriginalExtraction(textContent);
-        }
+        return callAiExtractQuestions(textContent, null, null);
+    }
+    
+    /**
+     * 2. 调用大模型，拆题 - 带学科年级约束
+     */
+    public JSONArray callAiExtractQuestions(String textContent, String subject, String grade) {
+        // Direct extraction - no need for complex enhanced/original fallback
+        return callOriginalExtraction(textContent, subject, grade);
     }
 
-    /**
-     * 增强版题目提取 - 包含题干提取和知识点识别
-     */
-    private JSONArray callEnhancedExtraction(String textContent) {
-        try {
-            // 调用增强提取接口 - 直接使用AI服务
-            System.out.println("🚀 Calling enhanced extraction API...");
-            System.out.println("⏱️ Using AI processing service for question extraction...");
-            
-            String response = aiProcessingService.enhancedExtract(textContent);
-            
-            if (response == null) {
-                throw new RuntimeException("调用增强提取接口失败: AI服务返回空结果");
-            }
-            
-            // 解析响应
-            String responseBody = response;
-            System.out.println("📥 Enhanced extraction response received, length: " + responseBody.length());
-            System.out.println("📋 Response preview: " + responseBody.substring(0, Math.min(200, responseBody.length())) + "...");
-            
-            JSONArray questions = JSONArray.parseArray(responseBody);
-            System.out.println("✅ Parsed " + questions.size() + " questions from enhanced extraction");
-            
-            // 处理增强数据
-            for (Object item : questions) {
-                if (item instanceof JSONObject) {
-                    JSONObject question = (JSONObject) item;
-                    
-                    // 设置提取状态为已提取
-                    question.put("extractionStatus", 1);
-                    
-                    // 确保知识点格式正确 - 处理从LLM返回的字符串格式
-                    if (question.containsKey("knowledgePoints")) {
-                        Object kpObj = question.get("knowledgePoints");
-                        if (kpObj instanceof JSONArray) {
-                            // 如果是JSONArray，转换为字符串
-                            JSONArray knowledgePoints = (JSONArray) kpObj;
-                            question.put("knowledgePoints", knowledgePoints.toJSONString());
-                        } else if (kpObj instanceof String) {
-                            // 如果已经是字符串，保持不变（来自增强提取）
-                            String kpStr = (String) kpObj;
-                            try {
-                                // 验证是否为有效的JSON数组格式
-                                JSONArray.parseArray(kpStr);
-                                question.put("knowledgePoints", kpStr);
-                            } catch (Exception e) {
-                                // 如果不是有效JSON，设置为空数组
-                                question.put("knowledgePoints", "[]");
-                            }
-                        } else {
-                            // 其他情况设置为空数组
-                            question.put("knowledgePoints", "[]");
-                        }
-                    } else {
-                        // 如果没有知识点字段，设置为空数组
-                        question.put("knowledgePoints", "[]");
-                    }
-                    
-                    // 确保题干字段存在
-                    if (!question.containsKey("questionStem") || question.getString("questionStem") == null) {
-                        question.put("questionStem", question.getString("content"));
-                    }
-                }
-            }
-            
-            System.out.println("Enhanced extraction successful with " + questions.size() + " questions");
-            return questions;
-            
-        } catch (Exception e) {
-            throw new RuntimeException("增强提取异常: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * 原始版题目提取 - 兼容性保证
      */
     private JSONArray callOriginalExtraction(String textContent) {
+        return callOriginalExtraction(textContent, null, null);
+    }
+    
+    /**
+     * 原始版题目提取 - 带学科年级约束
+     */
+    private JSONArray callOriginalExtraction(String textContent, String subject, String grade) {
         try {
             // 调用原始提取接口 - 直接使用AI服务  
             String response = aiProcessingService.extractQuestions(textContent);
@@ -172,23 +108,28 @@ public class AIUploadService {
             String responseBody = response;
             JSONArray questions = JSONArray.parseArray(responseBody);
             
-            // 为原始提取的题目设置默认值
+            // 为原始提取的题目也进行个别处理（简化版）
             for (Object item : questions) {
                 if (item instanceof JSONObject) {
                     JSONObject question = (JSONObject) item;
+                    String questionContent = question.getString("content");
                     
-                    // 设置默认题干为原内容
-                    if (!question.containsKey("questionStem")) {
-                        question.put("questionStem", question.getString("content"));
+                    // Simple approach - same as enhanced method
+                    String extractedStem = aiProcessingService.extractStem(questionContent);
+                    
+                    // Use constrained knowledge point extraction if subject/grade provided
+                    String knowledgePoint;
+                    if (subject != null && grade != null) {
+                        knowledgePoint = aiProcessingService.identifyKnowledgeWithConstraints(questionContent, subject, grade);
+                    } else {
+                        knowledgePoint = aiProcessingService.identifyKnowledge(questionContent);
                     }
                     
-                    // 设置默认知识点为空数组
-                    if (!question.containsKey("knowledgePoints")) {
-                        question.put("knowledgePoints", "[]");
-                    }
+                    question.put("questionStem", extractedStem != null ? extractedStem.trim() : questionContent);
+                    question.put("knowledgePoints", knowledgePoint != null ? "[\"" + knowledgePoint.trim() + "\"]" : "[]");
                     
-                    // 设置提取状态为未处理
-                    question.put("extractionStatus", 0);
+                    // 设置提取状态为已处理（因为我们已经尝试了处理）
+                    question.put("extractionStatus", 1);
                 }
             }
             
@@ -210,6 +151,13 @@ public class AIUploadService {
      * 3. 存数据库（带图片信息）
      */
     public ApiRest<?> saveQuestionsWithImages(JSONArray questions, JSONArray extractedImages) {
+        return saveQuestionsWithImages(questions, extractedImages, null, null);
+    }
+    
+    /**
+     * 3. 存数据库（带图片信息和学科年级）
+     */
+    public ApiRest<?> saveQuestionsWithImages(JSONArray questions, JSONArray extractedImages, String subject, String grade) {
         try {
             int savedCount = 0;
             
@@ -247,8 +195,16 @@ public class AIUploadService {
                     questionJson.getInteger("extractionStatus") : 0;
                 
                 qu.setQuestionStem(questionStem);
-                qu.setKnowledgePoints(knowledgePoints);
+                qu.setKnowledgePoints(knowledgePoints); // Keep for backward compatibility
                 qu.setExtractionStatus(extractionStatus);
+                
+                // Set subject and grade if provided
+                if (subject != null && !subject.trim().isEmpty()) {
+                    qu.setSubject(subject);
+                }
+                if (grade != null && !grade.trim().isEmpty()) {
+                    qu.setGrade(grade);
+                }
                 
                 System.out.println("💾 Saving question with enhanced data:");
                 System.out.println("  📝 Content: " + qu.getContent().substring(0, Math.min(50, qu.getContent().length())) + "...");
@@ -311,6 +267,13 @@ public class AIUploadService {
      * 4. 全流程入口（给 Controller 用）
      */
     public ApiRest<?> handleUploadAndSplit(MultipartFile file) {
+        return handleUploadAndSplit(file, null, null);
+    }
+    
+    /**
+     * 4. 全流程入口（带学科年级约束）
+     */
+    public ApiRest<?> handleUploadAndSplit(MultipartFile file, String subject, String grade) {
         try {
             // 1. 先抽文件内容
             String extractJsonStr = extractTextFromFile(file);
@@ -346,10 +309,10 @@ public class AIUploadService {
             }
             
             // 2. 调 LLM 拆题
-            JSONArray questions = callAiExtractQuestions(textContent);
+            JSONArray questions = callAiExtractQuestions(textContent, subject, grade);
             
             // 3. 存库并返回正确格式（包含图片信息）
-            return saveQuestionsWithImages(questions, extractedImages);
+            return saveQuestionsWithImages(questions, extractedImages, subject, grade);
         } catch (Exception e) {
             // Return proper ApiRest error format
             ApiRest<Object> apiRest = new ApiRest<>();

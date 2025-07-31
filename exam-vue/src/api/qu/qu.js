@@ -43,8 +43,11 @@ export function importExcel(file) {
 /**
  * AI智能导入题目
  * @param file
+ * @param subject
+ * @param grade
  */
-export function aiUploadQuestions(file) {
-  return upload('/exam/api/ai-upload/upload', file)
+export function aiUploadQuestions(file, subject, grade) {
+  const data = { subject, grade }
+  return upload('/exam/api/ai-upload/upload', file, data)
 }
 

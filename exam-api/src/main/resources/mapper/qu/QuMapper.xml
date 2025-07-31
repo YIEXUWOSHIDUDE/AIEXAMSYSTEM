@@ -12,6 +12,8 @@
         <result column="question_stem" property="questionStem" />
         <result column="knowledge_points" property="knowledgePoints" />
         <result column="extraction_status" property="extractionStatus" />
+        <result column="subject" property="subject" />
+        <result column="grade" property="grade" />
         <result column="create_time" property="createTime" />
         <result column="update_time" property="updateTime" />
         <result column="remark" property="remark" />
@@ -20,7 +22,7 @@
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        `id`,`qu_type`,`level`,`image`,`content`,`question_stem`,`knowledge_points`,`extraction_status`,`create_time`,`update_time`,`remark`,`analysis`
+        `id`,`qu_type`,`level`,`image`,`content`,`question_stem`,`knowledge_points`,`extraction_status`,`subject`,`grade`,`create_time`,`update_time`,`remark`,`analysis`
     </sql>
 
 
@@ -103,6 +105,12 @@
                 <if test="query.knowledgePoint!=null and query.knowledgePoint!=''">
                     AND q.knowledge_points LIKE CONCAT('%',#{query.knowledgePoint},'%')
                 </if>
+                <if test="query.subject!=null and query.subject!=''">
+                    AND q.subject = #{query.subject}
+                </if>
+                <if test="query.grade!=null and query.grade!=''">
+                    AND q.grade = #{query.grade}
+                </if>
                 <if test="query.excludes!=null and query.excludes.size()>0">
                     AND q.id NOT IN
                     <foreach collection="query.excludes" open="(" close=")" separator="," item="quId">
@@ -116,6 +124,7 @@
     <select id="paging" resultMap="BaseResultMap">
         SELECT q.id, q.qu_type, q.level, q.image, q.content, 
                q.question_stem, q.knowledge_points, q.extraction_status,
+               q.subject, q.grade,
                q.create_time, q.update_time, q.remark, q.analysis
         FROM el_qu q
         LEFT JOIN el_qu_repo po ON q.id=po.qu_id

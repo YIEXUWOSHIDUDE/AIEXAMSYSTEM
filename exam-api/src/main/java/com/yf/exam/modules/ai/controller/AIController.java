@@ -120,26 +120,34 @@ public class AIController extends BaseController {
     }
 
     /**
-     * 增强提取 - 替代 /api/llm/enhancedextract
+     * 知识点识别（带约束） - 限制从指定学科年级选择
      */
-    @PostMapping("/enhanced-extract")
-    public ApiRest<String> enhancedExtract(@RequestBody Map<String, Object> request) {
+    @PostMapping("/identify-knowledge-with-constraints")
+    public ApiRest<String> identifyKnowledgeWithConstraints(@RequestBody Map<String, Object> request) {
         try {
-            String content = (String) request.get("content");
-            if (content == null || content.trim().isEmpty()) {
-                return super.failure("内容不能为空");
+            String questionContent = (String) request.get("questionContent");
+            String subject = (String) request.get("subject");
+            String grade = (String) request.get("grade");
+            
+            if (questionContent == null || questionContent.trim().isEmpty()) {
+                return super.failure("题目内容不能为空");
+            }
+            
+            if (subject == null || grade == null) {
+                return super.failure("学科和年级不能为空");
             }
 
-            String result = aiProcessingService.enhancedExtract(content);
+            String result = aiProcessingService.identifyKnowledgeWithConstraints(questionContent, subject, grade);
             if (result != null) {
                 return super.success(result);
             } else {
-                return super.failure("增强提取失败");
+                return super.failure("约束知识点识别失败");
             }
         } catch (Exception e) {
-            return super.failure("增强提取异常: " + e.getMessage());
+            return super.failure("约束知识点识别异常: " + e.getMessage());
         }
     }
+
 
     /**
      * 简答题判分 - 替代 /api/llm/judge/short-answer

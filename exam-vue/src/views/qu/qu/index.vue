@@ -28,6 +28,26 @@
             
             <el-input v-model="listQuery.params.knowledgePoint" placeholder="知识点搜索" style="width: 150px;" class="filter-item" />
 
+            <el-select v-model="listQuery.params.subject" placeholder="选择学科" style="width: 120px;" class="filter-item" clearable>
+              <el-option label="数学" value="数学" />
+              <el-option label="物理" value="物理" />
+              <el-option label="化学" value="化学" />
+              <el-option label="语文" value="语文" />
+              <el-option label="英语" value="英语" />
+              <el-option label="生物" value="生物" />
+              <el-option label="历史" value="历史" />
+              <el-option label="地理" value="地理" />
+            </el-select>
+
+            <el-select v-model="listQuery.params.grade" placeholder="选择年级" style="width: 120px;" class="filter-item" clearable>
+              <el-option label="七年级" value="七年级" />
+              <el-option label="八年级" value="八年级" />
+              <el-option label="九年级" value="九年级" />
+              <el-option label="高一" value="高一" />
+              <el-option label="高二" value="高二" />
+              <el-option label="高三" value="高三" />
+            </el-select>
+
             <el-button-group class="filter-item" style="float:  right">
               <el-button size="mini" class="ai-upload-btn" type="primary" @click="showAIImport">
                 <i class="el-icon-magic-stick" />
@@ -51,6 +71,26 @@
         >
           <template v-slot="scope">
             {{ scope.row.quType | quTypeFilter() }}
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="学科"
+          align="center"
+          width="80px"
+        >
+          <template v-slot="scope">
+            {{ scope.row.subject || '未设置' }}
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="年级"
+          align="center"
+          width="80px"
+        >
+          <template v-slot="scope">
+            {{ scope.row.grade || '未设置' }}
           </template>
         </el-table-column>
 
@@ -187,7 +227,9 @@ export default {
         params: {
           content: '',
           quType: '',
-          repoIds: []
+          repoIds: [],
+          subject: '',
+          grade: ''
         }
       },
 

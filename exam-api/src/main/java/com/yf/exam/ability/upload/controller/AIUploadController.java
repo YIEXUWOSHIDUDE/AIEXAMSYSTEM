@@ -18,7 +18,10 @@ public class AIUploadController extends BaseController {
      * 上传试卷并自动拆题
      */
     @PostMapping("/upload")
-    public ApiRest<?> uploadAndSplit(@RequestParam("file") MultipartFile file) {
-        return aiUploadService.handleUploadAndSplit(file);
+    public ApiRest<?> uploadAndSplit(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "subject", required = false) String subject,
+            @RequestParam(value = "grade", required = false) String grade) {
+        return aiUploadService.handleUploadAndSplit(file, subject, grade);
     }
 }
