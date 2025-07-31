@@ -54,7 +54,7 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog :title="dialogStatus === 'create' ? '新建大纲' : '编辑大纲'" :visible.sync="dialogFormVisible" width="500px">
+    <el-dialog :title="dialogStatus === 'create' ? '新建大纲' : '编辑大纲'" :visible.sync="dialogFormVisible" width="90%" fullscreen>
       <el-form ref="dataForm" :rules="rules" :model="temp" label-position="left" label-width="80px">
         <el-form-item label="学科" prop="subject">
           <el-select v-model="temp.subject" placeholder="请选择学科" style="width: 100%">
