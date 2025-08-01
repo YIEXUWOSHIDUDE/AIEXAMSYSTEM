@@ -354,6 +354,16 @@
                 type="info"
                 :closable="false"
                 show-icon />
+              <div class="knowledge-actions">
+                <el-button 
+                  size="small" 
+                  type="primary" 
+                  icon="el-icon-refresh" 
+                  @click="loadKnowledgePoints"
+                  style="margin-top: 10px;">
+                  刷新知识点
+                </el-button>
+              </div>
             </div>
             <div class="knowledge-points-selection" v-if="availableKnowledgePoints.length > 0">
               <el-checkbox-group v-model="selectedKnowledgePoints" class="knowledge-checkbox-group">
@@ -740,6 +750,11 @@ export default {
           this.dateValues[1] = this.postForm.endTime
         }
         this.repoList = this.postForm.repoList
+        
+        // 如果有已存在的题库，加载其知识点
+        if (this.repoList && this.repoList.length > 0) {
+          this.loadKnowledgePoints()
+        }
       })
     },
 
@@ -795,6 +810,13 @@ export default {
     // 加载知识点
     async loadKnowledgePoints() {
       console.log('开始加载知识点, 当前题库列表:', this.repoList)
+      
+      if (!this.repoList || this.repoList.length === 0) {
+        this.availableKnowledgePoints = []
+        this.selectedKnowledgePoints = []
+        return
+      }
+      
       try {
         const allPoints = new Set()
         
@@ -805,31 +827,11 @@ export default {
             const response = await getKnowledgePointsByRepo(repo.repoId)
             console.log('API响应:', response)
             
-            // 处理不同的响应格式
-            let knowledgePoints = []
-            if (response && response.data) {
-              if (Array.isArray(response.data)) {
-                knowledgePoints = response.data
-              } else if (response.data.records && Array.isArray(response.data.records)) {
-                knowledgePoints = response.data.records
-              } else if (typeof response.data === 'string') {
-                // 如果返回的是JSON字符串，尝试解析
-                try {
-                  knowledgePoints = JSON.parse(response.data)
-                } catch (e) {
-                  knowledgePoints = [response.data]
-                }
-              }
-            }
-            
-            console.log('处理后的知识点列表:', knowledgePoints)
-            
-            if (Array.isArray(knowledgePoints)) {
-              knowledgePoints.forEach(point => {
+            // 根据后端API，数据应该在response.data中，是字符串数组
+            if (response && response.data && Array.isArray(response.data)) {
+              response.data.forEach(point => {
                 if (point && typeof point === 'string' && point.trim()) {
                   allPoints.add(point.trim())
-                } else if (point && typeof point === 'object' && point.knowledgePoint) {
-                  allPoints.add(point.knowledgePoint.trim())
                 }
               })
             }
@@ -844,10 +846,14 @@ export default {
           point => this.availableKnowledgePoints.includes(point)
         )
         
+        if (this.availableKnowledgePoints.length === 0) {
+          console.log('当前题库中没有找到知识点，可能需要先为题目添加知识点标签')
+        }
+        
       } catch (error) {
         console.error('加载知识点失败:', error)
         this.availableKnowledgePoints = []
-        this.$message.error('加载知识点失败: ' + error.message)
+        this.$message.error('加载知识点失败，请检查网络连接')
       }
     },
 
