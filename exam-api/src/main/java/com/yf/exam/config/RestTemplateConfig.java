@@ -30,8 +30,8 @@ public class RestTemplateConfig {
             }
         };
         
-        factory.setConnectTimeout(30000); // 30 seconds
-        factory.setReadTimeout(60000); // 60 seconds
+        factory.setConnectTimeout(30000); // 30 seconds connection timeout
+        factory.setReadTimeout(180000); // 3 minutes read timeout for complex document processing
         restTemplate.setRequestFactory(factory);
         
         return restTemplate;

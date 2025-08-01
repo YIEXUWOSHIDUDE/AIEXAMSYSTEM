@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 /**
  * 统一AI控制器 - 替代原LLM模块
@@ -38,6 +39,55 @@ public class AIController extends BaseController {
             }
         } catch (Exception e) {
             return super.failure("题目提取异常: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 智能题目提取 - 自动检测文档结构并选择最佳提取方法
+     */
+    @PostMapping("/extract-questions-intelligent")
+    public ApiRest<String> extractQuestionsIntelligent(@RequestBody Map<String, Object> request) {
+        try {
+            String content = (String) request.get("content");
+            if (content == null || content.trim().isEmpty()) {
+                return super.failure("内容不能为空");
+            }
+
+            String result = aiProcessingService.extractQuestionsIntelligent(content);
+            if (result != null) {
+                return super.success(result);
+            } else {
+                return super.failure("智能题目提取失败");
+            }
+        } catch (Exception e) {
+            return super.failure("智能题目提取异常: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 增强题目提取 - 支持图片和文字混合内容
+     */
+    @PostMapping("/extract-questions-with-images")
+    public ApiRest<String> extractQuestionsWithImages(@RequestBody Map<String, Object> request) {
+        try {
+            String content = (String) request.get("content");
+            @SuppressWarnings("unchecked")
+            List<String> images = (List<String>) request.get("images");
+            
+            // 内容和图片至少要有一个
+            if ((content == null || content.trim().isEmpty()) && 
+                (images == null || images.isEmpty())) {
+                return super.failure("文字内容和图片至少要提供一个");
+            }
+
+            String result = aiProcessingService.extractQuestionsWithImages(content, images);
+            if (result != null) {
+                return super.success(result);
+            } else {
+                return super.failure("多模态题目提取失败");
+            }
+        } catch (Exception e) {
+            return super.failure("多模态题目提取异常: " + e.getMessage());
         }
     }
 

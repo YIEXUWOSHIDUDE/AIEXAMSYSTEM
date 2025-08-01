@@ -55,4 +55,7 @@ public class ExamRepoExtDTO extends ExamRepoDTO {
     @ApiModelProperty(value = "是否启用知识点筛选", required=false)
     private Boolean knowledgePointFilterEnabled;
     
+    @ApiModelProperty(value = "难度分布方案", required=false)
+    private String difficultyScheme;
+    
 }

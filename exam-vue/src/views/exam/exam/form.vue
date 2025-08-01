@@ -387,6 +387,44 @@
           </div>
         </el-form-item>
 
+        <!-- AI难度分布方案选择 -->
+        <el-form-item v-if="postForm.useAI" label="🎯 难度分布方案" class="difficulty-scheme-item">
+          <div class="difficulty-scheme-container">
+            <div class="scheme-selection">
+              <el-radio-group v-model="selectedDifficultyScheme" class="scheme-radio-group">
+                <el-radio-button label="BALANCED">
+                  <div class="scheme-option">
+                    <div class="scheme-name">🌟 均衡型</div>
+                    <div class="scheme-ratio">简单25% | 普通35% | 难题25% | 超难15%</div>
+                    <div class="scheme-desc">适合日常考察，难度适中，整体覆盖面广</div>
+                  </div>
+                </el-radio-button>
+                <el-radio-button label="ADVANCED">
+                  <div class="scheme-option">
+                    <div class="scheme-name">🚀 进阶挑战型</div>
+                    <div class="scheme-ratio">简单15% | 普通30% | 难题35% | 超难20%</div>
+                    <div class="scheme-desc">适合稍具挑战性的考试，突出学生能力差异</div>
+                  </div>
+                </el-radio-button>
+                <el-radio-button label="COMPETITION">
+                  <div class="scheme-option">
+                    <div class="scheme-name">🔥 高难度竞赛型</div>
+                    <div class="scheme-ratio">简单10% | 普通20% | 难题35% | 超难35%</div>
+                    <div class="scheme-desc">适合选拔或竞赛类考试，突出难题和超难题的区分度</div>
+                  </div>
+                </el-radio-button>
+                <el-radio-button label="FOUNDATION">
+                  <div class="scheme-option">
+                    <div class="scheme-name">✨ 基础巩固型</div>
+                    <div class="scheme-ratio">简单40% | 普通40% | 难题15% | 超难5%</div>
+                    <div class="scheme-desc">适合阶段性复习或基础考核，以巩固学生基础知识为主</div>
+                  </div>
+                </el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item v-if="postForm.timeLimit" label="考试时间" prop="totalTime">
 
           <el-date-picker
@@ -506,6 +544,8 @@ export default {
       // 知识点相关
       availableKnowledgePoints: [],
       selectedKnowledgePoints: [],
+      // 难度分布方案
+      selectedDifficultyScheme: 'BALANCED',
       postForm: {
         // 总分数
         totalScore: 0,
@@ -765,7 +805,9 @@ export default {
         // 如果启用AI且选择了知识点，则传递给后端
         selectedKnowledgePoints: this.postForm.useAI && this.selectedKnowledgePoints.length > 0 
           ? this.selectedKnowledgePoints 
-          : null
+          : null,
+        // 如果启用AI，传递难度分布方案
+        difficultyScheme: this.postForm.useAI ? this.selectedDifficultyScheme : null
       }))
 
       saveData(this.postForm).then(() => {
@@ -867,6 +909,7 @@ export default {
         this.repoList = []
         this.availableKnowledgePoints = []
         this.selectedKnowledgePoints = []
+        this.selectedDifficultyScheme = 'BALANCED'
         this.postForm = {
           totalScore: 0,
           repoList: [],
@@ -1237,6 +1280,73 @@ export default {
 .no-knowledge-points {
   padding: 20px;
   text-align: center;
+}
+
+/* 难度分布方案样式 */
+.difficulty-scheme-container {
+  margin-top: 10px;
+}
+
+.scheme-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scheme-radio-group .el-radio-button {
+  width: 100%;
+  margin: 0;
+}
+
+.scheme-radio-group .el-radio-button__inner {
+  width: 100%;
+  text-align: left;
+  padding: 15px 20px;
+  border-radius: 8px;
+  border: 2px solid #e4e7ed;
+  background: white;
+  transition: all 0.3s;
+}
+
+.scheme-radio-group .el-radio-button__inner:hover {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.scheme-radio-group .el-radio-button.is-active .el-radio-button__inner {
+  border-color: #409eff;
+  background: #409eff;
+  color: white;
+}
+
+.scheme-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scheme-name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.scheme-ratio {
+  font-size: 13px;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.scheme-desc {
+  font-size: 12px;
+  opacity: 0.7;
+  line-height: 1.3;
+}
+
+.scheme-radio-group .el-radio-button.is-active .scheme-name,
+.scheme-radio-group .el-radio-button.is-active .scheme-ratio,
+.scheme-radio-group .el-radio-button.is-active .scheme-desc {
+  color: white;
 }
 
 </style>

@@ -52,7 +52,24 @@ public class AIExamGenerationService {
     public List<Qu> intelligentQuestionSelectionWithKnowledgePoints(String repoId, Integer quType, 
                                                                    List<String> excludes, Integer size,
                                                                    List<String> selectedKnowledgePoints) {
-        return intelligentQuestionSelectionWithDifficultyRatio(repoId, quType, excludes, size, selectedKnowledgePoints, true);
+        return intelligentQuestionSelectionWithDifficultyRatio(repoId, quType, excludes, size, 
+            selectedKnowledgePoints, true, PromptConfig.DifficultyRatio.DifficultyScheme.BALANCED);
+    }
+    
+    public List<Qu> intelligentQuestionSelectionWithKnowledgePoints(String repoId, Integer quType, 
+                                                                   List<String> excludes, Integer size,
+                                                                   List<String> selectedKnowledgePoints,
+                                                                   String difficultyScheme) {
+        PromptConfig.DifficultyRatio.DifficultyScheme scheme = PromptConfig.DifficultyRatio.DifficultyScheme.BALANCED;
+        try {
+            if (difficultyScheme != null) {
+                scheme = PromptConfig.DifficultyRatio.DifficultyScheme.valueOf(difficultyScheme);
+            }
+        } catch (IllegalArgumentException e) {
+            System.err.println("Invalid difficulty scheme: " + difficultyScheme + ", using BALANCED");
+        }
+        return intelligentQuestionSelectionWithDifficultyRatio(repoId, quType, excludes, size, 
+            selectedKnowledgePoints, true, scheme);
     }
 
     /**
@@ -68,7 +85,8 @@ public class AIExamGenerationService {
     public List<Qu> intelligentQuestionSelectionWithDifficultyRatio(String repoId, Integer quType, 
                                                                    List<String> excludes, Integer size,
                                                                    List<String> selectedKnowledgePoints,
-                                                                   boolean enforceDifficultyRatio) {
+                                                                   boolean enforceDifficultyRatio,
+                                                                   PromptConfig.DifficultyRatio.DifficultyScheme scheme) {
         try {
             // 1. 根据是否有知识点筛选条件选择不同的查询方法
             List<Qu> allQuestions;
@@ -92,8 +110,8 @@ public class AIExamGenerationService {
             
             // 2. 难度比例强制执行逻辑
             if (enforceDifficultyRatio) {
-                System.out.println("🎯 执行强制难度比例分配 - 总题数: " + size);
-                return selectQuestionsWithDifficultyRatio(allQuestions, size, quType, selectedKnowledgePoints);
+                System.out.println("🎯 执行强制难度比例分配 - 总题数: " + size + ", 方案: " + scheme.getName());
+                return selectQuestionsWithDifficultyRatio(allQuestions, size, quType, selectedKnowledgePoints, scheme);
             }
             
             // 3. 不强制难度比例时，使用轻量级AI选择（向后兼容）
@@ -123,16 +141,17 @@ public class AIExamGenerationService {
      * @param quType 题目类型
      * @return 按难度比例分配的题目列表
      */
-    private List<Qu> selectQuestionsWithDifficultyRatio(List<Qu> allQuestions, Integer totalSize, Integer quType, List<String> selectedKnowledgePoints) {
-        System.out.println("🎯 开始按难度比例强制分配题目");
+    private List<Qu> selectQuestionsWithDifficultyRatio(List<Qu> allQuestions, Integer totalSize, Integer quType, List<String> selectedKnowledgePoints, PromptConfig.DifficultyRatio.DifficultyScheme scheme) {
+        System.out.println("🎯 开始按难度比例强制分配题目 - 方案: " + scheme.getName());
         
         // 1. 计算各难度级别需要的题目数量
-        int[] difficultyCount = PromptConfig.DifficultyRatio.calculateQuestionCounts(totalSize);
+        int[] difficultyCount = PromptConfig.DifficultyRatio.calculateQuestionCounts(totalSize, scheme);
         int easyCount = difficultyCount[0];
         int mediumCount = difficultyCount[1]; 
         int hardCount = difficultyCount[2];
+        int superHardCount = difficultyCount.length > 3 ? difficultyCount[3] : 0;
         
-        System.out.println("📊 难度分配计划: 简单题(" + easyCount + ") + 中等题(" + mediumCount + ") + 困难题(" + hardCount + ") = " + totalSize);
+        System.out.println("📊 难度分配计划: 简单题(" + easyCount + ") + 普通题(" + mediumCount + ") + 难题(" + hardCount + ") + 超难题(" + superHardCount + ") = " + totalSize);
         
         // 2. 按难度分组题目
         Map<Integer, List<Qu>> questionsByDifficulty = allQuestions.stream()
@@ -166,11 +185,20 @@ public class AIExamGenerationService {
             // 选择困难题
             List<Qu> selectedHard = selectQuestionsFromDifficultyGroup(
                 questionsByDifficulty.get(PromptConfig.DifficultyRatio.HARD_LEVEL), 
-                hardCount, "困难题", quType, selectedKnowledgePoints);
+                hardCount, "难题", quType, selectedKnowledgePoints);
             selectedQuestions.addAll(selectedHard);
             
+            // 选择超难题
+            List<Qu> selectedSuperHard = new ArrayList<>();
+            if (superHardCount > 0) {
+                selectedSuperHard = selectQuestionsFromDifficultyGroup(
+                    questionsByDifficulty.get(PromptConfig.DifficultyRatio.SUPER_HARD_LEVEL), 
+                    superHardCount, "超难题", quType, selectedKnowledgePoints);
+                selectedQuestions.addAll(selectedSuperHard);
+            }
+            
             System.out.println("✅ 难度比例分配完成！实际选择: " + selectedQuestions.size() + " 道题目");
-            System.out.println("📊 最终分布: 简单(" + selectedEasy.size() + ") + 中等(" + selectedMedium.size() + ") + 困难(" + selectedHard.size() + ")");
+            System.out.println("📊 最终分布: 简单(" + selectedEasy.size() + ") + 普通(" + selectedMedium.size() + ") + 难题(" + selectedHard.size() + ") + 超难(" + selectedSuperHard.size() + ")");
             
             return selectedQuestions;
             

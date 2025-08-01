@@ -12,30 +12,33 @@ public class PromptConfig {
                     "    \"quType\": 1,\n" +
                     "    \"level\": 1,\n" +
                     "    \"content\": \"题目内容\",\n" +
+                    "    \"image\": \"题目图片URL（如有）\",\n" +
                     "    \"analysis\": \"解析说明\",\n" +
                     "    \"options\": [\n" +
-                    "      {\"content\": \"选项A\", \"isRight\": false},\n" +
-                    "      {\"content\": \"选项B\", \"isRight\": true},\n" +
-                    "      {\"content\": \"选项C\", \"isRight\": false},\n" +
-                    "      {\"content\": \"选项D\", \"isRight\": false}\n" +
+                    "      {\"content\": \"选项A\", \"image\": \"选项图片URL（如有）\", \"isRight\": false, \"analysis\": \"选项解析（可选）\"},\n" +
+                    "      {\"content\": \"选项B\", \"image\": null, \"isRight\": true, \"analysis\": \"选项解析（可选）\"},\n" +
+                    "      {\"content\": \"选项C\", \"image\": null, \"isRight\": false, \"analysis\": \"选项解析（可选）\"},\n" +
+                    "      {\"content\": \"选项D\", \"image\": null, \"isRight\": false, \"analysis\": \"选项解析（可选）\"}\n" +
                     "    ]\n" +
                     "  },\n" +
                     "  {\n" +
                     "    \"quType\": 4,\n" +
                     "    \"level\": 1,\n" +
                     "    \"content\": \"请简述面向对象编程的三大特性。\",\n" +
+                    "    \"image\": null,\n" +
                     "    \"analysis\": \"面向对象编程的三大特性是封装、继承和多态\",\n" +
                     "    \"options\": [\n" +
-                    "      {\"content\": \"封装、继承、多态。封装是隐藏内部实现细节；继承是子类继承父类的属性和方法；多态是同一接口的不同实现。\", \"isRight\": true}\n" +
+                    "      {\"content\": \"封装、继承、多态。封装是隐藏内部实现细节；继承是子类继承父类的属性和方法；多态是同一接口的不同实现。\", \"image\": null, \"isRight\": true, \"analysis\": \"标准答案\"}\n" +
                     "    ]\n" +
                     "  },\n" +
                     "  {\n" +
                     "    \"quType\": 5,\n" +
                     "    \"level\": 1,\n" +
                     "    \"content\": \"填空题：Java中用于定义类的关键字是_____。\",\n" +
+                    "    \"image\": null,\n" +
                     "    \"analysis\": \"class关键字用于定义类\",\n" +
                     "    \"options\": [\n" +
-                    "      {\"content\": \"class\", \"isRight\": true}\n" +
+                    "      {\"content\": \"class\", \"image\": null, \"isRight\": true, \"analysis\": \"正确答案\"}\n" +
                     "    ]\n" +
                     "  }\n" +
                     "]\n" +
@@ -46,6 +49,9 @@ public class PromptConfig {
                     "- 填空题的options数组包含正确答案\n" +
                     "- 简答题必须在options中包含参考答案，isRight设为true\n" +
                     "- 必须包含有意义的analysis解析\n" +
+                    "- 如果题目或选项包含图片，提取图片URL到image字段；没有图片时设为null\n" +
+                    "- 支持图片+文字混合的选项内容\n" +
+                    "- 每个选项可以包含独立的analysis解析说明\n" +
                     "- 只返回JSON数组，不要其他内容";
 
     /**
@@ -68,13 +74,14 @@ public class PromptConfig {
                     "    \"quType\": 1,\n" +
                     "    \"level\": 1,\n" +
                     "    \"content\": \"题目内容\",\n" +
+                    "    \"image\": \"题目图片URL（如有）\",\n" +
                     "    \"analysis\": \"解析说明\",\n" +
                     "    \"knowledgePoint\": \"必须从指定知识点中选择一个\",\n" +
                     "    \"options\": [\n" +
-                    "      {\"content\": \"选项A\", \"isRight\": false},\n" +
-                    "      {\"content\": \"选项B\", \"isRight\": true},\n" +
-                    "      {\"content\": \"选项C\", \"isRight\": false},\n" +
-                    "      {\"content\": \"选项D\", \"isRight\": false}\n" +
+                    "      {\"content\": \"选项A\", \"image\": \"选项图片URL（如有）\", \"isRight\": false, \"analysis\": \"选项解析（可选）\"},\n" +
+                    "      {\"content\": \"选项B\", \"image\": null, \"isRight\": true, \"analysis\": \"选项解析（可选）\"},\n" +
+                    "      {\"content\": \"选项C\", \"image\": null, \"isRight\": false, \"analysis\": \"选项解析（可选）\"},\n" +
+                    "      {\"content\": \"选项D\", \"image\": null, \"isRight\": false, \"analysis\": \"选项解析（可选）\"}\n" +
                     "    ]\n" +
                     "  }\n" +
                     "]\n" +
@@ -85,10 +92,76 @@ public class PromptConfig {
                     "- knowledgePoint必须且只能从指定的知识点中选择\n" +
                     "- 如果题目与指定知识点无关，直接跳过不要提取\n" +
                     "- 必须包含有意义的analysis解析\n" +
+                    "- 如果题目或选项包含图片，提取图片URL到image字段；没有图片时设为null\n" +
+                    "- 支持图片+文字混合的选项内容\n" +
+                    "- 每个选项可以包含独立的analysis解析说明\n" +
                     "- 只返回JSON数组，不要其他内容\n" +
                     "- 宁可返回较少的高质量题目，也不要返回不相关的题目";
 
+    /**
+     * 智能文档结构分析提示词 - 检测分离式答案格式
+     */
+    public static final String DOCUMENT_STRUCTURE_ANALYSIS_PROMPT =
+            "请分析以下文档的结构，判断题目和答案的组织方式。\n" +
+                    "\n" +
+                    "【分析要点】：\n" +
+                    "1. 题目和答案是内联格式（答案紧跟在每个题目后面）还是分离格式（所有题目在前，答案统一在后）\n" +
+                    "2. 如果是分离格式，识别题目区域和答案区域的分界点\n" +
+                    "3. 识别编号格式：1. 2. 3. / (1) (2) (3) / A. B. C. / 第1题 第2题 等\n" +
+                    "4. 检测答案区域的标识：答案、参考答案、Answer Key、答案解析等\n" +
+                    "\n" +
+                    "【返回格式】：\n" +
+                    "{\n" +
+                    "  \"documentType\": \"inline\" | \"separated\",\n" +
+                    "  \"questionNumberingStyle\": \"1.\" | \"(1)\" | \"A.\" | \"第1题\" | \"Question 1\" | \"other\",\n" +
+                    "  \"answerSectionStart\": \"答案区域开始的文本位置描述\",\n" +
+                    "  \"answerSectionKeywords\": [\"答案\", \"参考答案\", \"Answer Key\"],\n" +
+                    "  \"totalQuestions\": 估计的题目总数,\n" +
+                    "  \"confidence\": 0.0-1.0的置信度\n" +
+                    "}\n" +
+                    "\n" +
+                    "【重要】：只返回JSON对象，不要其他内容。";
 
+    /**
+     * 分离式答案提取提示词 - 处理题目和答案分开的文档
+     */
+    public static final String SEPARATED_ANSWER_EXTRACTION_PROMPT =
+            "这是一个题目和答案分离的文档。请按照以下步骤提取：\n" +
+                    "\n" +
+                    "【第一步】：提取所有题目\n" +
+                    "- 识别题目编号和内容\n" +
+                    "- 保持题目的原始编号\n" +
+                    "- 注意题目可能包含选项A、B、C、D\n" +
+                    "\n" +
+                    "【第二步】：提取对应答案\n" +
+                    "- 根据编号匹配找到每个题目的答案\n" +
+                    "- 答案可能是：选项字母（A、B、C）、具体内容、数值等\n" +
+                    "- 如果是选择题答案（如\"1.B\"），需要找到对应的选项内容\n" +
+                    "\n" +
+                    "【第三步】：组合成完整题目\n" +
+                    "严格按照以下JSON格式返回：\n" +
+                    "[\n" +
+                    "  {\n" +
+                    "    \"originalNumber\": \"1\",\n" +
+                    "    \"quType\": 1,\n" +
+                    "    \"level\": 1,\n" +
+                    "    \"content\": \"题目内容\",\n" +
+                    "    \"image\": \"题目图片URL（如有）\",\n" +
+                    "    \"analysis\": \"解析说明\",\n" +
+                    "    \"options\": [\n" +
+                    "      {\"content\": \"选项A\", \"image\": null, \"isRight\": false, \"analysis\": \"选项解析\"},\n" +
+                    "      {\"content\": \"选项B\", \"image\": null, \"isRight\": true, \"analysis\": \"正确答案\"}\n" +
+                    "    ]\n" +
+                    "  }\n" +
+                    "]\n" +
+                    "\n" +
+                    "【重要要求】：\n" +
+                    "- 必须确保每个题目都有对应的答案\n" +
+                    "- 如果答案是选项字母，要标记对应选项为isRight: true\n" +
+                    "- 如果是填空题或简答题，答案放在options数组中，isRight设为true\n" +
+                    "- 保持originalNumber字段记录原始编号\n" +
+                    "- 如果某个题目找不到答案，在analysis中说明\n" +
+                    "- 只返回JSON数组，不要其他内容";
 
     // ===========================================
     // DIFFICULTY RATIO CONFIGURATION - ABSOLUTELY ENFORCED
@@ -96,35 +169,83 @@ public class PromptConfig {
     
     /**
      * 难度分布比例配置 - 系统强制执行
-     * 所有智能组卷必须严格按照此比例分配题目难度
+     * 支持4个难度等级和多种分布方案
      */
     public static final class DifficultyRatio {
-        public static final double EASY_RATIO = 0.50;      // 简单题 50%
-        public static final double MEDIUM_RATIO = 0.30;    // 中等题 30%  
-        public static final double HARD_RATIO = 0.20;      // 困难题 20%
         
         // 难度等级映射
-        public static final int EASY_LEVEL = 1;
-        public static final int MEDIUM_LEVEL = 2;
-        public static final int HARD_LEVEL = 3;
+        public static final int EASY_LEVEL = 1;      // 简单（1档）
+        public static final int MEDIUM_LEVEL = 2;    // 普通（2档）
+        public static final int HARD_LEVEL = 3;      // 难题（3档）
+        public static final int SUPER_HARD_LEVEL = 4; // 超难（4档）
+        
+        // 难度分布方案枚举
+        public enum DifficultyScheme {
+            BALANCED("均衡型", 0.25, 0.35, 0.25, 0.15, "🌟 适合日常考察，难度适中，整体覆盖面广"),
+            ADVANCED("进阶挑战型", 0.15, 0.30, 0.35, 0.20, "🚀 适合稍具挑战性的考试，突出学生能力差异"),
+            COMPETITION("高难度竞赛型", 0.10, 0.20, 0.35, 0.35, "🔥 适合选拔或竞赛类考试，突出难题和超难题的区分度"),
+            FOUNDATION("基础巩固型", 0.40, 0.40, 0.15, 0.05, "✨ 适合阶段性复习或基础考核，以巩固学生基础知识为主");
+            
+            private final String name;
+            private final double easyRatio;
+            private final double mediumRatio;
+            private final double hardRatio;
+            private final double superHardRatio;
+            private final String description;
+            
+            DifficultyScheme(String name, double easyRatio, double mediumRatio, double hardRatio, double superHardRatio, String description) {
+                this.name = name;
+                this.easyRatio = easyRatio;
+                this.mediumRatio = mediumRatio;
+                this.hardRatio = hardRatio;
+                this.superHardRatio = superHardRatio;
+                this.description = description;
+            }
+            
+            public String getName() { return name; }
+            public double getEasyRatio() { return easyRatio; }
+            public double getMediumRatio() { return mediumRatio; }
+            public double getHardRatio() { return hardRatio; }
+            public double getSuperHardRatio() { return superHardRatio; }
+            public String getDescription() { return description; }
+        }
+        
+        // 默认方案
+        public static final DifficultyScheme DEFAULT_SCHEME = DifficultyScheme.BALANCED;
         
         /**
-         * 计算各难度等级所需题目数量
+         * 根据指定方案计算各难度等级所需题目数量
+         */
+        public static int[] calculateQuestionCounts(int totalQuestions, DifficultyScheme scheme) {
+            int easyCount = (int) Math.round(totalQuestions * scheme.getEasyRatio());
+            int mediumCount = (int) Math.round(totalQuestions * scheme.getMediumRatio());
+            int hardCount = (int) Math.round(totalQuestions * scheme.getHardRatio());
+            int superHardCount = totalQuestions - easyCount - mediumCount - hardCount; // 确保总数正确
+            
+            return new int[]{easyCount, mediumCount, hardCount, superHardCount};
+        }
+        
+        /**
+         * 使用默认方案计算题目数量（向后兼容）
          */
         public static int[] calculateQuestionCounts(int totalQuestions) {
-            int easyCount = (int) Math.round(totalQuestions * EASY_RATIO);
-            int mediumCount = (int) Math.round(totalQuestions * MEDIUM_RATIO);
-            int hardCount = totalQuestions - easyCount - mediumCount; // 确保总数正确
-            
-            return new int[]{easyCount, mediumCount, hardCount};
+            return calculateQuestionCounts(totalQuestions, DEFAULT_SCHEME);
         }
         
         /**
          * 获取难度分布描述文本 - 用于AI提示
          */
+        public static String getRatioDescription(DifficultyScheme scheme) {
+            return String.format("严格按照以下难度比例选题：简单题(level=1) %d%%, 普通题(level=2) %d%%, 难题(level=3) %d%%, 超难题(level=4) %d%%",
+                (int)(scheme.getEasyRatio() * 100), (int)(scheme.getMediumRatio() * 100), 
+                (int)(scheme.getHardRatio() * 100), (int)(scheme.getSuperHardRatio() * 100));
+        }
+        
+        /**
+         * 使用默认方案获取描述（向后兼容）
+         */
         public static String getRatioDescription() {
-            return String.format("严格按照以下难度比例选题：简单题(level=1) %d%%, 中等题(level=2) %d%%, 困难题(level=3) %d%%",
-                (int)(EASY_RATIO * 100), (int)(MEDIUM_RATIO * 100), (int)(HARD_RATIO * 100));
+            return getRatioDescription(DEFAULT_SCHEME);
         }
     }
 

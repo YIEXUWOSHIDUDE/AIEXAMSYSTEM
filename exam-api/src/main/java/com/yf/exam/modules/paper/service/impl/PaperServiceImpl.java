@@ -286,9 +286,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
                 if(item.getRadioCount() > 0){
                     List<Qu> radioList;
                     if (useAI) {
-                        radioList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
-                                item.getRepoId(), QuType.RADIO, excludes, item.getRadioCount(), 
-                                item.getSelectedKnowledgePoints());
+                        if (item.getDifficultyScheme() != null) {
+                            radioList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.RADIO, excludes, item.getRadioCount(), 
+                                    item.getSelectedKnowledgePoints(), item.getDifficultyScheme());
+                        } else {
+                            radioList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.RADIO, excludes, item.getRadioCount(), 
+                                    item.getSelectedKnowledgePoints());
+                        }
                     } else {
                         radioList = quService.listByRandom(item.getRepoId(), QuType.RADIO, excludes, item.getRadioCount());
                     }
@@ -303,9 +309,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
                 if(item.getMultiCount() > 0) {
                     List<Qu> multiList;
                     if (useAI) {
-                        multiList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
-                                item.getRepoId(), QuType.MULTI, excludes, item.getMultiCount(),
-                                item.getSelectedKnowledgePoints());
+                        if (item.getDifficultyScheme() != null) {
+                            multiList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.MULTI, excludes, item.getMultiCount(), 
+                                    item.getSelectedKnowledgePoints(), item.getDifficultyScheme());
+                        } else {
+                            multiList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.MULTI, excludes, item.getMultiCount(), 
+                                    item.getSelectedKnowledgePoints());
+                        }
                     } else {
                         multiList = quService.listByRandom(item.getRepoId(), QuType.MULTI, excludes, item.getMultiCount());
                     }
@@ -320,9 +332,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
                 if(item.getJudgeCount() > 0) {
                     List<Qu> judgeList;
                     if (useAI) {
-                        judgeList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
-                                item.getRepoId(), QuType.JUDGE, excludes, item.getJudgeCount(),
-                                item.getSelectedKnowledgePoints());
+                        if (item.getDifficultyScheme() != null) {
+                            judgeList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.JUDGE, excludes, item.getJudgeCount(), 
+                                    item.getSelectedKnowledgePoints(), item.getDifficultyScheme());
+                        } else {
+                            judgeList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.JUDGE, excludes, item.getJudgeCount(), 
+                                    item.getSelectedKnowledgePoints());
+                        }
                     } else {
                         judgeList = quService.listByRandom(item.getRepoId(), QuType.JUDGE, excludes, item.getJudgeCount());
                     }
@@ -337,9 +355,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
                 if(item.getSaqCount() != null && item.getSaqCount() > 0) {
                     List<Qu> saqList;
                     if (useAI) {
-                        saqList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
-                                item.getRepoId(), QuType.SAQ, excludes, item.getSaqCount(),
-                                item.getSelectedKnowledgePoints());
+                        if (item.getDifficultyScheme() != null) {
+                            saqList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.SAQ, excludes, item.getSaqCount(), 
+                                    item.getSelectedKnowledgePoints(), item.getDifficultyScheme());
+                        } else {
+                            saqList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.SAQ, excludes, item.getSaqCount(), 
+                                    item.getSelectedKnowledgePoints());
+                        }
                     } else {
                         saqList = quService.listByRandom(item.getRepoId(), QuType.SAQ, excludes, item.getSaqCount());
                     }
@@ -354,9 +378,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
                 if(item.getGapFillingCount() != null && item.getGapFillingCount() > 0) {
                     List<Qu> gapFillingList;
                     if (useAI) {
-                        gapFillingList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
-                                item.getRepoId(), QuType.GAP_FILLING, excludes, item.getGapFillingCount(),
-                                item.getSelectedKnowledgePoints());
+                        if (item.getDifficultyScheme() != null) {
+                            gapFillingList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.GAP_FILLING, excludes, item.getGapFillingCount(), 
+                                    item.getSelectedKnowledgePoints(), item.getDifficultyScheme());
+                        } else {
+                            gapFillingList = aiExamGenerationService.intelligentQuestionSelectionWithKnowledgePoints(
+                                    item.getRepoId(), QuType.GAP_FILLING, excludes, item.getGapFillingCount(), 
+                                    item.getSelectedKnowledgePoints());
+                        }
                     } else {
                         gapFillingList = quService.listByRandom(item.getRepoId(), QuType.GAP_FILLING, excludes, item.getGapFillingCount());
                     }

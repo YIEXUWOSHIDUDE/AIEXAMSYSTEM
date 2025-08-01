@@ -48,6 +48,318 @@ public class AIProcessingService {
     }
 
     /**
+     * 增强题目提取 - 支持图片和文字混合内容
+     * @param content 文档文字内容
+     * @param images 图片数据列表（base64编码或URL）
+     * @return 提取结果
+     */
+    public String extractQuestionsWithImages(String content, List<String> images) {
+        try {
+            logger.info("🖼️ 开始多模态题目提取，文字内容长度: {}, 图片数量: {}", 
+                content != null ? content.length() : 0, 
+                images != null ? images.size() : 0);
+            
+            String prompt = PromptConfig.EXTRACT_QUESTION_PROMPT + "\n\n" +
+                "【重要说明】：\n" +
+                "- 本次提取包含图片内容，请仔细分析图片中的信息\n" +
+                "- 如果题目或选项中包含图片，请在相应的image字段中描述图片内容或提供图片标识\n" +
+                "- 图片中的文字、图表、公式等都需要准确识别\n" +
+                "- 支持数学公式、化学方程式、物理图表等专业内容\n\n" +
+                "文档内容：\n" + (content != null ? content : "");
+            
+            // 对于包含图片的内容，使用增强的API调用
+            if (images != null && !images.isEmpty()) {
+                return callQwen3APIWithImages(prompt, images);
+            } else {
+                return callQwen3API(prompt);
+            }
+        } catch (Exception e) {
+            logger.error("增强题目提取失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 智能题目提取 - 自动检测文档结构并选择合适的提取方法
+     * @param content 文档内容
+     * @return 提取结果
+     */
+    public String extractQuestionsIntelligent(String content) {
+        try {
+            logger.info("🔍 开始智能题目提取，文档长度: {}", content != null ? content.length() : 0);
+            
+            // 检查文档大小，如果过大考虑分块处理
+            if (content != null && content.length() > 15000) {
+                logger.info("📄 文档较大({} 字符)，使用增强处理策略", content.length());
+                return extractLargeDocument(content);
+            }
+            
+            // 第一步：分析文档结构
+            String structureAnalysis = analyzeDocumentStructure(content);
+            if (structureAnalysis == null) {
+                logger.warn("⚠️ 文档结构分析失败，回退到传统提取方法");
+                return extractQuestions(content);
+            }
+            
+            // 解析结构分析结果
+            JSONObject structure = JSON.parseObject(structureAnalysis);
+            String documentType = structure.getString("documentType");
+            double confidence = structure.getDoubleValue("confidence");
+            
+            logger.info("📊 文档结构分析结果: 类型={}, 置信度={}", documentType, confidence);
+            
+            // 第二步：根据文档类型选择提取方法
+            if ("separated".equals(documentType) && confidence > 0.7) {
+                logger.info("🎯 检测到分离式答案格式，使用专门的提取方法");
+                return extractQuestionsWithSeparatedAnswers(content, structure);
+            } else {
+                logger.info("📝 使用传统内联提取方法");
+                return extractQuestions(content);
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ 智能题目提取失败: {}", e.getMessage());
+            logger.info("🔄 回退到传统提取方法");
+            return extractQuestions(content);
+        }
+    }
+
+    /**
+     * 处理大型文档 - 使用优化策略减少超时风险
+     * @param content 大型文档内容
+     * @return 提取结果
+     */
+    private String extractLargeDocument(String content) {
+        try {
+            logger.info("📚 开始大型文档处理");
+            
+            // 对于大型文档，直接使用分离式提取（更高效）
+            // 因为大文档通常是正式的试题，更可能使用分离式答案
+            String structurePrompt = "这是一个大型题目文档。请快速判断：\n" +
+                "1. 题目和答案是否分离（所有题目在前，答案在后）？\n" +
+                "2. 如果是分离格式，返回 {\"documentType\": \"separated\", \"confidence\": 0.9}\n" +
+                "3. 如果不确定，返回 {\"documentType\": \"inline\", \"confidence\": 0.5}\n" +
+                "只返回JSON，不要其他内容。\n\n" +
+                "文档前1000字符：\n" + content.substring(0, Math.min(1000, content.length())) + "\n\n" +
+                "文档后1000字符：\n" + content.substring(Math.max(0, content.length() - 1000));
+            
+            String quickAnalysis = callQwen3API(structurePrompt);
+            
+            if (quickAnalysis != null) {
+                JSONObject structure = JSON.parseObject(quickAnalysis);
+                String documentType = structure.getString("documentType");
+                
+                if ("separated".equals(documentType)) {
+                    logger.info("🎯 大文档检测为分离式答案，使用专门处理");
+                    // 为大文档添加预估题目数量
+                    structure.put("totalQuestions", estimateQuestionCount(content));
+                    return extractQuestionsWithSeparatedAnswers(content, structure);
+                }
+            }
+            
+            // 回退到传统方法
+            logger.info("📝 大文档使用传统方法处理");
+            return extractQuestions(content);
+            
+        } catch (Exception e) {
+            logger.error("❌ 大文档处理失败: {}", e.getMessage());
+            return extractQuestions(content);
+        }
+    }
+
+    /**
+     * 估算文档中的题目数量
+     * @param content 文档内容
+     * @return 预估题目数量
+     */
+    private int estimateQuestionCount(String content) {
+        try {
+            // 简单的题目数量估算逻辑
+            int count = 0;
+            
+            // 匹配常见的题目编号模式
+            String[] patterns = {
+                "\\d+\\.", // 1. 2. 3.
+                "\\(\\d+\\)", // (1) (2) (3)
+                "[A-Z]\\.", // A. B. C.
+                "第\\d+题", // 第1题 第2题
+                "Question \\d+" // Question 1
+            };
+            
+            for (String pattern : patterns) {
+                java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+                java.util.regex.Matcher m = p.matcher(content);
+                int matches = 0;
+                while (m.find()) {
+                    matches++;
+                }
+                count = Math.max(count, matches);
+            }
+            
+            logger.info("📊 预估题目数量: {}", count);
+            return Math.max(count, 10); // 至少估算为10题
+            
+        } catch (Exception e) {
+            logger.warn("⚠️ 题目数量估算失败: {}", e.getMessage());
+            return 15; // 默认估算值
+        }
+    }
+
+    /**
+     * 分析文档结构 - 检测题目和答案的组织方式
+     * @param content 文档内容
+     * @return 结构分析JSON结果
+     */
+    private String analyzeDocumentStructure(String content) {
+        try {
+            logger.info("🔍 开始文档结构分析");
+            String prompt = PromptConfig.DOCUMENT_STRUCTURE_ANALYSIS_PROMPT + "\n\n文档内容：\n" + content;
+            
+            String result = callQwen3API(prompt);
+            
+            if (result != null) {
+                logger.info("✅ 文档结构分析完成");
+                logger.debug("📄 分析结果: {}", result);
+                return result;
+            } else {
+                logger.error("❌ 文档结构分析返回null");
+                return null;
+            }
+        } catch (Exception e) {
+            logger.error("❌ 文档结构分析异常: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 提取分离式答案格式的题目
+     * @param content 文档内容
+     * @param structure 文档结构信息
+     * @return 提取结果
+     */
+    private String extractQuestionsWithSeparatedAnswers(String content, JSONObject structure) {
+        try {
+            logger.info("🎯 开始分离式答案提取");
+            
+            String numberingStyle = structure.getString("questionNumberingStyle");
+            int totalQuestions = structure.getIntValue("totalQuestions");
+            
+            logger.info("📋 提取参数: 编号格式={}, 预估题目数={}", numberingStyle, totalQuestions);
+            
+            String prompt = PromptConfig.SEPARATED_ANSWER_EXTRACTION_PROMPT + "\n\n" +
+                "【文档结构信息】：\n" +
+                "编号格式：" + numberingStyle + "\n" +
+                "预估题目数：" + totalQuestions + "\n\n" +
+                "文档内容：\n" + content;
+            
+            String result = callQwen3API(prompt);
+            
+            if (result != null) {
+                logger.info("✅ 分离式答案提取成功，开始验证质量");
+                
+                // 验证提取质量
+                boolean isValid = validateQuestionAnswerMatching(result, totalQuestions);
+                if (!isValid) {
+                    logger.warn("⚠️ 分离式答案提取质量不佳，回退到传统方法");
+                    return extractQuestions(content);
+                }
+                
+                return result;
+            } else {
+                logger.error("❌ 分离式答案提取失败");
+                throw new RuntimeException("分离式答案提取返回null");
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ 分离式答案提取异常: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 验证题目-答案匹配质量
+     * @param extractionResult 提取结果JSON
+     * @param expectedQuestions 预期题目数量
+     * @return 是否通过验证
+     */
+    private boolean validateQuestionAnswerMatching(String extractionResult, int expectedQuestions) {
+        try {
+            logger.info("🔍 开始验证题目-答案匹配质量");
+            
+            JSONArray questions = JSON.parseArray(extractionResult);
+            if (questions == null || questions.isEmpty()) {
+                logger.warn("❌ 提取结果为空");
+                return false;
+            }
+            
+            int actualQuestions = questions.size();
+            logger.info("📊 提取统计: 预期{}题，实际{}题", expectedQuestions, actualQuestions);
+            
+            // 检查题目数量合理性
+            if (expectedQuestions > 0) {
+                double ratio = (double) actualQuestions / expectedQuestions;
+                if (ratio < 0.5 || ratio > 1.5) {
+                    logger.warn("⚠️ 题目数量偏差过大: 预期{}, 实际{}, 比例{}", 
+                        expectedQuestions, actualQuestions, ratio);
+                    return false;
+                }
+            }
+            
+            // 检查每个题目的完整性
+            int validQuestions = 0;
+            int questionsWithAnswers = 0;
+            
+            for (int i = 0; i < questions.size(); i++) {
+                JSONObject question = questions.getJSONObject(i);
+                
+                // 基本字段检查
+                if (question.containsKey("content") && 
+                    question.containsKey("quType") && 
+                    question.containsKey("options")) {
+                    validQuestions++;
+                    
+                    // 检查是否有正确答案
+                    JSONArray options = question.getJSONArray("options");
+                    if (options != null && !options.isEmpty()) {
+                        boolean hasCorrectAnswer = false;
+                        for (int j = 0; j < options.size(); j++) {
+                            JSONObject option = options.getJSONObject(j);
+                            if (option.getBooleanValue("isRight")) {
+                                hasCorrectAnswer = true;
+                                break;
+                            }
+                        }
+                        if (hasCorrectAnswer) {
+                            questionsWithAnswers++;
+                        }
+                    }
+                }
+            }
+            
+            logger.info("📈 质量统计: 有效题目{}/{}, 有答案题目{}/{}", 
+                validQuestions, actualQuestions, questionsWithAnswers, actualQuestions);
+            
+            // 验证通过条件
+            double validRatio = (double) validQuestions / actualQuestions;
+            double answerRatio = (double) questionsWithAnswers / actualQuestions;
+            
+            boolean passed = validRatio >= 0.8 && answerRatio >= 0.7;
+            
+            if (passed) {
+                logger.info("✅ 题目-答案匹配质量验证通过");
+            } else {
+                logger.warn("❌ 题目-答案匹配质量不达标: 有效比例={}, 答案比例={}", validRatio, answerRatio);
+            }
+            
+            return passed;
+            
+        } catch (Exception e) {
+            logger.error("❌ 验证过程异常: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * 题目提取 - 从文档中提取题目（带知识点约束）
      */
     public String extractQuestions(String content, String subject, String grade) {
@@ -252,6 +564,77 @@ public class AIProcessingService {
     }
 
     /**
+     * 调用Qwen3-32B API - 支持图片的多模态版本
+     * @param prompt 文字提示
+     * @param images 图片列表（base64编码或URL）
+     * @return AI响应内容
+     */
+    private String callQwen3APIWithImages(String prompt, List<String> images) {
+        try {
+            logger.info("🚀 调用Qwen3多模态API: {}", QWEN3_API_URL);
+            logger.info("🔍 使用模型: {}, 图片数量: {}", MODEL_NAME, images.size());
+            
+            JSONObject requestBody = new JSONObject();
+            requestBody.put("model", MODEL_NAME);
+            
+            JSONArray messages = new JSONArray();
+            JSONObject message = new JSONObject();
+            message.put("role", "user");
+            
+            // 构建多模态内容
+            JSONArray contentArray = new JSONArray();
+            
+            // 添加文字内容
+            JSONObject textContent = new JSONObject();
+            textContent.put("type", "text");
+            textContent.put("text", prompt);
+            contentArray.add(textContent);
+            
+            // 添加图片内容
+            for (String imageData : images) {
+                JSONObject imageContent = new JSONObject();
+                imageContent.put("type", "image_url");
+                JSONObject imageUrl = new JSONObject();
+                
+                // 判断是base64还是URL
+                if (imageData.startsWith("data:image") || imageData.startsWith("http")) {
+                    imageUrl.put("url", imageData);
+                } else {
+                    // 假设是base64编码，添加前缀
+                    imageUrl.put("url", "data:image/jpeg;base64," + imageData);
+                }
+                
+                imageContent.put("image_url", imageUrl);
+                contentArray.add(imageContent);
+            }
+            
+            message.put("content", contentArray);
+            messages.add(message);
+            
+            requestBody.put("messages", messages);
+            requestBody.put("max_tokens", 32768);
+            requestBody.put("temperature", 0.1);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer EMPTY");
+            HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
+
+            logger.info("📤 发送多模态请求到: {}", QWEN3_API_URL);
+            logger.debug("📤 请求参数: {}", requestBody.toString());
+            
+            ResponseEntity<String> response = restTemplate.postForEntity(QWEN3_API_URL, entity, String.class);
+            
+            return parseQwen3Response(response);
+            
+        } catch (Exception e) {
+            logger.error("❌ Qwen3多模态API调用异常: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            logger.error("详细错误: ", e);
+            throw new RuntimeException("多模态AI服务调用失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 调用Qwen3-32B API
      */
     private String callQwen3API(String prompt) {
@@ -282,42 +665,18 @@ public class AIProcessingService {
             
             ResponseEntity<String> response = restTemplate.postForEntity(QWEN3_API_URL, entity, String.class);
             
-            logger.info("📥 响应状态: {}", response.getStatusCode());
-            logger.info("📥 响应Headers: {}", response.getHeaders());
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                logger.info("✅ HTTP请求成功，解析响应内容");
-                logger.debug("📥 完整响应: {}", response.getBody());
-                
-                JSONObject responseObj = JSON.parseObject(response.getBody());
-                JSONArray choices = responseObj.getJSONArray("choices");
-                if (choices != null && !choices.isEmpty()) {
-                    JSONObject firstChoice = choices.getJSONObject(0);
-                    JSONObject messageObj = firstChoice.getJSONObject("message");
-                    String content = messageObj.getString("content");
-                    
-                    if (content != null && !content.trim().isEmpty()) {
-                        logger.info("✅ AI响应成功，内容长度: {}", content.length());
-                        return content;
-                    } else {
-                        logger.error("❌ AI返回内容为空");
-                        return null;
-                    }
-                } else {
-                    logger.error("❌ AI响应格式错误：choices为空，完整响应: {}", response.getBody());
-                    return null;
-                }
-            } else {
-                logger.error("❌ API调用失败");
-                logger.error("状态码: {}", response.getStatusCode());
-                logger.error("响应体: {}", response.getBody());
-                throw new RuntimeException("AI服务返回错误状态: " + response.getStatusCode());
-            }
+            return parseQwen3Response(response);
             
         } catch (org.springframework.web.client.ResourceAccessException e) {
             logger.error("❌ 无法连接到AI服务器: {}", QWEN3_API_URL);
             logger.error("连接错误: {}", e.getMessage());
-            throw new RuntimeException("AI服务连接失败: 服务器不可达或服务未启动");
+            
+            // 检查是否是超时错误
+            if (e.getMessage().contains("Read timed out")) {
+                throw new RuntimeException("AI服务处理超时: 文档可能过于复杂，请尝试分段处理或简化内容");
+            } else {
+                throw new RuntimeException("AI服务连接失败: 服务器不可达或服务未启动");
+            }
         } catch (org.springframework.web.client.HttpServerErrorException e) {
             logger.error("❌ AI服务器内部错误: {}", e.getStatusCode());
             logger.error("错误响应: {}", e.getResponseBodyAsString());
@@ -325,7 +684,52 @@ public class AIProcessingService {
         } catch (Exception e) {
             logger.error("❌ Qwen3 API调用异常: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             logger.error("详细错误: ", e);
-            throw new RuntimeException("AI服务调用失败: " + e.getMessage());
+            
+            // 对于超时类异常提供更有用的错误信息
+            if (e.getCause() instanceof java.net.SocketTimeoutException) {
+                throw new RuntimeException("AI服务处理超时: 文档复杂度较高，请考虑：1)分段处理 2)简化文档内容 3)稍后重试");
+            } else {
+                throw new RuntimeException("AI服务调用失败: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 解析Qwen3 API响应
+     * @param response HTTP响应
+     * @return 解析出的内容
+     */
+    private String parseQwen3Response(ResponseEntity<String> response) {
+        logger.info("📥 响应状态: {}", response.getStatusCode());
+        logger.info("📥 响应Headers: {}", response.getHeaders());
+        
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            logger.info("✅ HTTP请求成功，解析响应内容");
+            logger.debug("📥 完整响应: {}", response.getBody());
+            
+            JSONObject responseObj = JSON.parseObject(response.getBody());
+            JSONArray choices = responseObj.getJSONArray("choices");
+            if (choices != null && !choices.isEmpty()) {
+                JSONObject firstChoice = choices.getJSONObject(0);
+                JSONObject messageObj = firstChoice.getJSONObject("message");
+                String content = messageObj.getString("content");
+                
+                if (content != null && !content.trim().isEmpty()) {
+                    logger.info("✅ AI响应成功，内容长度: {}", content.length());
+                    return content;
+                } else {
+                    logger.error("❌ AI返回内容为空");
+                    return null;
+                }
+            } else {
+                logger.error("❌ AI响应格式错误：choices为空，完整响应: {}", response.getBody());
+                return null;
+            }
+        } else {
+            logger.error("❌ API调用失败");
+            logger.error("状态码: {}", response.getStatusCode());
+            logger.error("响应体: {}", response.getBody());
+            throw new RuntimeException("AI服务返回错误状态: " + response.getStatusCode());
         }
     }
 

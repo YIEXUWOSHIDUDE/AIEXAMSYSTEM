@@ -58,6 +58,7 @@ com\yf\exam\modules\user\book\mapper\UserBookMapper.class
 com\yf\exam\modules\user\exam\entity\UserExam.class
 com\yf\exam\modules\exam\dto\ExamRepoDTO.class
 com\yf\exam\modules\paper\mapper\PaperQuMapper.class
+com\yf\exam\config\PromptConfig$DifficultyRatio$DifficultyScheme.class
 com\yf\exam\modules\qu\dto\export\QuImportDTO.class
 com\yf\exam\modules\sys\user\mapper\SysRoleMapper.class
 com\yf\exam\ability\job\service\impl\JobServiceImpl.class

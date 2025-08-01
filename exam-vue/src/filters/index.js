@@ -33,6 +33,16 @@ export function quTypeFilter(value) {
   return map[value]
 }
 
+export function levelFilter(value) {
+  const map = {
+    '1': '简单',
+    '2': '普通', 
+    '3': '难题',
+    '4': '超难'
+  }
+  return map[value] || '未知'
+}
+
 export function paperStateFilter(value) {
   const map = {
     '0': '考试中',

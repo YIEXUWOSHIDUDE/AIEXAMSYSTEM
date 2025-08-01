@@ -237,8 +237,10 @@ export default {
       itemImage: true,
 
       levels: [
-        { value: 1, label: '普通' },
-        { value: 2, label: '较难' }
+        { value: 1, label: '简单' },
+        { value: 2, label: '普通' },
+        { value: 3, label: '难题' },
+        { value: 4, label: '超难' }
       ],
 
       quTypes: [{

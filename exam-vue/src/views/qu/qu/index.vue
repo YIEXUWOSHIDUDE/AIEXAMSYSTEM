@@ -75,6 +75,20 @@
         </el-table-column>
 
         <el-table-column
+          label="难度等级"
+          align="center"
+          width="80px"
+        >
+          <template v-slot="scope">
+            <el-tag 
+              :type="getLevelTagType(scope.row.level)"
+              size="mini">
+              {{ scope.row.level | levelFilter }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column
           label="学科"
           align="center"
           width="80px"
@@ -302,6 +316,17 @@ export default {
         console.warn('Failed to parse knowledge points:', knowledgePointsStr)
         return null
       }
+    },
+
+    // 根据难度等级返回标签颜色类型
+    getLevelTagType(level) {
+      const typeMap = {
+        1: 'success',    // 简单 - 绿色
+        2: '',           // 普通 - 默认色
+        3: 'warning',    // 难题 - 橙色
+        4: 'danger'      // 超难 - 红色
+      }
+      return typeMap[level] || ''
     },
 
     handleMultiAction(obj) {

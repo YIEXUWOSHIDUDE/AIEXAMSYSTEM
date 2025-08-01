@@ -26,9 +26,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AIUploadService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AIUploadService.class);
 
     @Autowired
     private AIProcessingService aiProcessingService;
@@ -97,16 +101,16 @@ public class AIUploadService {
      */
     private JSONArray callOriginalExtraction(String textContent, String subject, String grade) {
         try {
-            // 调用原始提取接口 - 直接使用AI服务  
-            String response = aiProcessingService.extractQuestions(textContent);
+            // 调用智能提取接口 - 自动检测文档结构并选择最佳方法
+            String response = aiProcessingService.extractQuestionsIntelligent(textContent);
             
             if (response == null) {
                 throw new RuntimeException("调用AI接口失败: AI服务返回空结果");
             }
             
-            // 解析响应
+            // 解析响应 - 提取JSON数组
             String responseBody = response;
-            JSONArray questions = JSONArray.parseArray(responseBody);
+            JSONArray questions = parseAIResponse(responseBody);
             
             // 为原始提取的题目也进行个别处理（简化版）
             for (Object item : questions) {
@@ -320,6 +324,38 @@ public class AIUploadService {
             apiRest.setMsg("AI解析失败: " + e.getMessage());
             apiRest.setData(null);
             return apiRest;
+        }
+    }
+
+    /**
+     * 解析AI响应，提取JSON数组
+     * AI可能返回额外的文本，需要提取纯JSON部分
+     */
+    private JSONArray parseAIResponse(String response) {
+        try {
+            // 尝试直接解析
+            return JSONArray.parseArray(response);
+        } catch (Exception e) {
+            logger.warn("直接解析JSON失败，尝试提取JSON数组: {}", e.getMessage());
+            
+            try {
+                // 查找JSON数组的开始和结束位置
+                int startIndex = response.indexOf('[');
+                int endIndex = response.lastIndexOf(']');
+                
+                if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+                    String jsonString = response.substring(startIndex, endIndex + 1);
+                    logger.info("提取到JSON字符串，长度: {}", jsonString.length());
+                    return JSONArray.parseArray(jsonString);
+                } else {
+                    throw new RuntimeException("响应中未找到有效的JSON数组");
+                }
+                
+            } catch (Exception parseError) {
+                logger.error("JSON解析失败，响应前500字符: {}", 
+                    response.length() > 500 ? response.substring(0, 500) : response);
+                throw new RuntimeException("AI响应格式错误，无法解析JSON: " + parseError.getMessage());
+            }
         }
     }
 }
