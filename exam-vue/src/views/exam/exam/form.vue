@@ -344,6 +344,38 @@
           </div>
         </el-form-item>
 
+        <!-- AI知识点选择 -->
+        <el-form-item v-if="postForm.useAI" label="🎯 知识点选择" class="knowledge-points-item">
+          <div class="knowledge-points-container">
+            <div class="knowledge-points-description">
+              <el-alert
+                title="💡 选择知识点可让AI更精准地筛选题目"
+                description="不选择时AI将从所有题目中智能选择，选择后将严格限定在指定知识点范围内"
+                type="info"
+                :closable="false"
+                show-icon />
+            </div>
+            <div class="knowledge-points-selection" v-if="availableKnowledgePoints.length > 0">
+              <el-checkbox-group v-model="selectedKnowledgePoints" class="knowledge-checkbox-group">
+                <el-checkbox 
+                  v-for="point in availableKnowledgePoints" 
+                  :key="point" 
+                  :label="point"
+                  class="knowledge-checkbox">
+                  {{ point }}
+                </el-checkbox>
+              </el-checkbox-group>
+            </div>
+            <div v-else class="no-knowledge-points">
+              <el-alert
+                title="暂无可选知识点"
+                description="请先在题库中添加带有知识点标签的题目"
+                type="warning"
+                :closable="false"
+                show-icon />
+            </div>
+          </div>
+        </el-form-item>
 
         <el-form-item v-if="postForm.timeLimit" label="考试时间" prop="totalTime">
 
@@ -441,6 +473,7 @@
 <script>
 import { fetchDetail, saveData } from '@/api/exam/exam'
 import { fetchTree } from '@/api/sys/depart/depart'
+import { getKnowledgePointsByRepo } from '@/api/qu/knowledgepoint'
 import RepoSelect from '@/components/RepoSelect'
 
 export default {
@@ -460,6 +493,9 @@ export default {
       repoList: [],
       // 已选择的题库
       excludes: [],
+      // 知识点相关
+      availableKnowledgePoints: [],
+      selectedKnowledgePoints: [],
       postForm: {
         // 总分数
         totalScore: 0,
@@ -709,7 +745,13 @@ export default {
 
     submitForm() {
       // 校验和处理数据
-      this.postForm.repoList = this.repoList
+      this.postForm.repoList = this.repoList.map(repo => ({
+        ...repo,
+        // 如果启用AI且选择了知识点，则传递给后端
+        selectedKnowledgePoints: this.postForm.useAI && this.selectedKnowledgePoints.length > 0 
+          ? this.selectedKnowledgePoints 
+          : null
+      }))
 
       saveData(this.postForm).then(() => {
         this.$notify({
@@ -738,12 +780,74 @@ export default {
         row.totalJudge = e.judgeCount
         row.totalSaq = e.saqCount || 0
         row.totalGapFilling = e.gapFillingCount || 0
+        
+        // 当选择题库时，加载该题库的知识点
+        this.loadKnowledgePoints()
       } else {
         row.totalRadio = 0
         row.totalMulti = 0
         row.totalJudge = 0
         row.totalSaq = 0
         row.totalGapFilling = 0
+      }
+    },
+
+    // 加载知识点
+    async loadKnowledgePoints() {
+      console.log('开始加载知识点, 当前题库列表:', this.repoList)
+      try {
+        const allPoints = new Set()
+        
+        // 获取所有已选择题库的知识点
+        for (const repo of this.repoList) {
+          if (repo.repoId) {
+            console.log('正在获取题库知识点:', repo.repoId)
+            const response = await getKnowledgePointsByRepo(repo.repoId)
+            console.log('API响应:', response)
+            
+            // 处理不同的响应格式
+            let knowledgePoints = []
+            if (response && response.data) {
+              if (Array.isArray(response.data)) {
+                knowledgePoints = response.data
+              } else if (response.data.records && Array.isArray(response.data.records)) {
+                knowledgePoints = response.data.records
+              } else if (typeof response.data === 'string') {
+                // 如果返回的是JSON字符串，尝试解析
+                try {
+                  knowledgePoints = JSON.parse(response.data)
+                } catch (e) {
+                  knowledgePoints = [response.data]
+                }
+              }
+            }
+            
+            console.log('处理后的知识点列表:', knowledgePoints)
+            
+            if (Array.isArray(knowledgePoints)) {
+              knowledgePoints.forEach(point => {
+                if (point && typeof point === 'string' && point.trim()) {
+                  allPoints.add(point.trim())
+                } else if (point && typeof point === 'object' && point.knowledgePoint) {
+                  allPoints.add(point.knowledgePoint.trim())
+                }
+              })
+            }
+          }
+        }
+        
+        this.availableKnowledgePoints = Array.from(allPoints).sort()
+        console.log('最终可用知识点:', this.availableKnowledgePoints)
+        
+        // 清除已选择但不再可用的知识点
+        this.selectedKnowledgePoints = this.selectedKnowledgePoints.filter(
+          point => this.availableKnowledgePoints.includes(point)
+        )
+        
+      } catch (error) {
+        console.error('加载知识点失败:', error)
+        this.availableKnowledgePoints = []
+        this.$message.error('加载知识点失败: ' + error.message)
       }
     },
 
@@ -755,6 +859,8 @@ export default {
         type: 'warning'
       }).then(() => {
         this.repoList = []
+        this.availableKnowledgePoints = []
+        this.selectedKnowledgePoints = []
         this.postForm = {
           totalScore: 0,
           repoList: [],
@@ -1079,6 +1185,52 @@ export default {
 .el-input:focus, .el-textarea:focus {
   border-color: #409eff;
   box-shadow: 0 0 8px rgba(64, 158, 255, 0.2);
+}
+
+/* 知识点选择样式 */
+.knowledge-points-container {
+  margin-top: 10px;
+}
+
+.knowledge-points-description {
+  margin-bottom: 15px;
+}
+
+.knowledge-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.knowledge-checkbox {
+  margin: 0 !important;
+  padding: 8px 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background-color: white;
+  transition: all 0.2s;
+}
+
+.knowledge-checkbox:hover {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+}
+
+.knowledge-checkbox.is-checked {
+  border-color: #409eff;
+  background-color: #409eff;
+  color: white;
+}
+
+.no-knowledge-points {
+  padding: 20px;
+  text-align: center;
 }
 
 </style>

@@ -47,6 +47,12 @@
               <el-tag v-for="item in paperData.judgeList" :type="cardItemClass(item.answered, item.quId)" @click="handSave(item)">{{ item.sort+1 }}</el-tag>
             </el-row>
           </div>
+          <div v-if="paperData.saqList!==undefined && paperData.saqList.length > 0">
+            <p class="card-title">简答题</p>
+            <el-row :gutter="24" class="card-line">
+              <el-tag v-for="item in paperData.saqList" :type="cardItemClass(item.answered, item.quId)" @click="handSave(item)">{{ item.sort+1 }}</el-tag>
+            </el-row>
+          </div>
 
         </el-card>
 
@@ -79,6 +85,16 @@
               </el-checkbox>
             </el-checkbox-group>
 
+          </div>
+
+          <div v-if="quData.quType === 4">
+            <el-input
+              v-model="saqValue"
+              type="textarea"
+              :rows="6"
+              placeholder="请输入您的答案..."
+              style="margin-top: 10px;">
+            </el-input>
           </div>
 
           <div style="margin-top: 20px">
@@ -132,12 +148,15 @@ export default {
         leftSeconds: 99999,
         radioList: [],
         multiList: [],
-        judgeList: []
+        judgeList: [],
+        saqList: []
       },
       // 单选选定值
       radioValue: '',
       // 多选选定值
       multiValue: [],
+      // 简答题答案
+      saqValue: '',
       // 已答ID
       answeredIds: []
     }
@@ -187,6 +206,12 @@ export default {
       })
 
       this.paperData.judgeList.forEach(function(item) {
+        if (!item.answered) {
+          notAnswered += 1
+        }
+      })
+
+      this.paperData.saqList.forEach(function(item) {
         if (!item.answered) {
           notAnswered += 1
         }
@@ -277,10 +302,10 @@ export default {
         answers.push(this.radioValue)
       }
 
-      const params = { paperId: this.paperId, quId: this.cardItem.quId, answers: answers, answer: '' }
+      const params = { paperId: this.paperId, quId: this.cardItem.quId, answers: answers, answer: this.saqValue }
       fillAnswer(params).then(() => {
-        // 必须选择一个值
-        if (answers.length > 0) {
+        // 必须选择一个值或填写简答题答案
+        if (answers.length > 0 || this.saqValue.trim() !== '') {
           // 加入已答列表
           this.cardItem.answered = true
         }
@@ -313,6 +338,7 @@ export default {
         this.quData = response.data
         this.radioValue = ''
         this.multiValue = []
+        this.saqValue = ''
 
         // 填充该题目的答案
         this.quData.answerList.forEach((item) => {
@@ -324,6 +350,11 @@ export default {
             this.multiValue.push(item.id)
           }
         })
+
+        // 填充简答题答案
+        if (this.quData.quType === 4 && this.quData.answer) {
+          this.saqValue = this.quData.answer
+        }
 
         // 关闭详情
         loading.close()
@@ -344,6 +375,8 @@ export default {
           this.cardItem = this.paperData.multiList[0]
         } else if (this.paperData.judgeList && this.paperData.judgeList.length>0) {
           this.cardItem = this.paperData.judgeList[0]
+        } else if (this.paperData.saqList && this.paperData.saqList.length>0) {
+          this.cardItem = this.paperData.saqList[0]
         }
 
         const that = this
@@ -357,6 +390,10 @@ export default {
         })
 
         this.paperData.judgeList.forEach(function(item) {
+          that.allItem.push(item)
+        })
+
+        this.paperData.saqList.forEach(function(item) {
           that.allItem.push(item)
         })
 

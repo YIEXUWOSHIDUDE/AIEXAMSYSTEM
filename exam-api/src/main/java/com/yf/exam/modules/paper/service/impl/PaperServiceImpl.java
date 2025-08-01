@@ -222,11 +222,24 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
     public PaperQuDetailDTO findQuDetail(String paperId, String quId) {
 
         PaperQuDetailDTO respDTO = new PaperQuDetailDTO();
+        
+        // 验证参数
+        if (quId == null || quId.trim().isEmpty()) {
+            throw new ServiceException(1, "题目ID不能为空");
+        }
+        
         // 问题
         Qu qu = quService.getById(quId);
+        if (qu == null) {
+            throw new ServiceException(1, "题目不存在或已被删除，题目ID: " + quId);
+        }
 
         // 基本信息
         PaperQu paperQu = paperQuService.findByKey(paperId, quId);
+        if (paperQu == null) {
+            throw new ServiceException(1, "试卷中不存在该题目");
+        }
+        
         BeanMapper.copy(paperQu, respDTO);
         respDTO.setContent(qu.getContent());
         respDTO.setImage(qu.getImage());
@@ -444,7 +457,10 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
         paper.setUpdateTime(new Date());
         paper.setQualifyScore(exam.getQualifyScore());
         paper.setState(PaperState.ING);
-        paper.setHasSaq(false);
+        
+        // 检查是否包含简答题
+        boolean hasSaq = quList.stream().anyMatch(qu -> QuType.SAQ.equals(qu.getQuType()));
+        paper.setHasSaq(hasSaq);
 
         // 截止时间
         Calendar cl = Calendar.getInstance();
@@ -494,7 +510,13 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
                     paperQuAnswer.setAnswerId(answer.getId());
                     paperQuAnswer.setChecked(false);
                     paperQuAnswer.setSort(ii);
-                    paperQuAnswer.setAbc(ABC.get(ii));
+                    // 对于简答题(type 4)，不需要ABC标签，使用空字符串
+                    if (QuType.SAQ.equals(item.getQuType())) {
+                        paperQuAnswer.setAbc("");
+                    } else {
+                        // 确保不超出ABC数组范围
+                        paperQuAnswer.setAbc(ii < ABC.size() ? ABC.get(ii) : "");
+                    }
                     paperQuAnswer.setIsRight(answer.getIsRight());
                     ii++;
                     batchAnswerList.add(paperQuAnswer);
@@ -529,18 +551,28 @@ public class PaperServiceImpl extends ServiceImpl<PaperMapper, Paper> implements
         //是否正确
         boolean right = true;
 
+        // 获取题目类型以确定处理方式
+        PaperQu paperQu = paperQuService.findByKey(reqDTO.getPaperId(), reqDTO.getQuId());
+        
         //更新正确答案
         for (PaperQuAnswer item : list) {
-
-            if (reqDTO.getAnswers().contains(item.getId())) {
-                item.setChecked(true);
-            } else {
+            // 对于简答题，不进行选择题式的答案检查
+            if (QuType.SAQ.equals(paperQu.getQuType())) {
+                // 简答题暂时不自动判分，标记为需要人工批阅
+                right = false; // 需要人工判分
                 item.setChecked(false);
-            }
+            } else {
+                // 选择题、判断题等的处理
+                if (reqDTO.getAnswers() != null && reqDTO.getAnswers().contains(item.getId())) {
+                    item.setChecked(true);
+                } else {
+                    item.setChecked(false);
+                }
 
-            //有一个对不上就是错的
-            if (item.getIsRight()!=null && !item.getIsRight().equals(item.getChecked())) {
-                right = false;
+                //有一个对不上就是错的
+                if (item.getIsRight()!=null && !item.getIsRight().equals(item.getChecked())) {
+                    right = false;
+                }
             }
             paperQuAnswerService.updateById(item);
         }

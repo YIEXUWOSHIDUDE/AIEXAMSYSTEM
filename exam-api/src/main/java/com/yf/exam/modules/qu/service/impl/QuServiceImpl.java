@@ -23,17 +23,20 @@ import com.yf.exam.modules.qu.service.QuRepoService;
 import com.yf.exam.modules.qu.service.QuService;
 import com.yf.exam.modules.qu.utils.ImageCheckUtils;
 import com.yf.exam.modules.repo.service.RepoService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>
@@ -100,8 +103,43 @@ public class QuServiceImpl extends ServiceImpl<QuMapper, Qu> implements QuServic
             return baseMapper.listByType(repoId, quType, excludes);
         }
         
-        // 否则按知识点筛选
-        return baseMapper.listByTypeAndKnowledgePoints(repoId, quType, excludes, selectedKnowledgePoints);
+        // 先获取所有包含这些知识点的题目
+        List<Qu> candidateQuestions = baseMapper.listByTypeAndKnowledgePoints(repoId, quType, excludes, selectedKnowledgePoints);
+        
+        // 进行严格过滤：确保题目的所有知识点都在选定的知识点集合中
+        List<Qu> filteredQuestions = new ArrayList<>();
+        Set<String> selectedPointsSet = new HashSet<>(selectedKnowledgePoints);
+        
+        for (Qu qu : candidateQuestions) {
+            if (StringUtils.isNotBlank(qu.getKnowledgePoints()) && 
+                !qu.getKnowledgePoints().equals("[]")) {
+                
+                try {
+                    // 解析题目的知识点JSON数组
+                    ObjectMapper objectMapper = new ObjectMapper();
+                    List<String> questionPoints = objectMapper.readValue(qu.getKnowledgePoints(), 
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
+                    
+                    // 检查题目的所有知识点是否都在选定的知识点集合中
+                    boolean allPointsMatched = true;
+                    for (String point : questionPoints) {
+                        if (!selectedPointsSet.contains(point.trim())) {
+                            allPointsMatched = false;
+                            break;
+                        }
+                    }
+                    
+                    if (allPointsMatched) {
+                        filteredQuestions.add(qu);
+                    }
+                } catch (Exception e) {
+                    // 如果JSON解析失败，跳过这道题
+                    System.err.println("Failed to parse knowledge points for question " + qu.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        return filteredQuestions;
     }
 
     @Override

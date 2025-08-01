@@ -93,18 +93,18 @@ public class AIExamGenerationService {
             // 2. 难度比例强制执行逻辑
             if (enforceDifficultyRatio) {
                 System.out.println("🎯 执行强制难度比例分配 - 总题数: " + size);
-                return selectQuestionsWithDifficultyRatio(allQuestions, size, quType);
+                return selectQuestionsWithDifficultyRatio(allQuestions, size, quType, selectedKnowledgePoints);
             }
             
             // 3. 不强制难度比例时，使用轻量级AI选择（向后兼容）
             try {
-                return lightweightIntelligentSelection(allQuestions, size, quType);
+                return lightweightIntelligentSelection(allQuestions, size, quType, selectedKnowledgePoints);
             } catch (Exception lightweightError) {
                 System.err.println("轻量级AI选题失败，尝试传统方法: " + lightweightError.getMessage());
                 
                 // 4. 回退到传统AI选择
                 String questionList = buildQuestionSelectionPrompt(allQuestions, size, quType);
-                String selectedIds = callLLMService(questionList, size);
+                String selectedIds = callLLMService(questionList, size, selectedKnowledgePoints);
                 return parseAndReturnQuestions(selectedIds, allQuestions);
             }
             
@@ -123,7 +123,7 @@ public class AIExamGenerationService {
      * @param quType 题目类型
      * @return 按难度比例分配的题目列表
      */
-    private List<Qu> selectQuestionsWithDifficultyRatio(List<Qu> allQuestions, Integer totalSize, Integer quType) {
+    private List<Qu> selectQuestionsWithDifficultyRatio(List<Qu> allQuestions, Integer totalSize, Integer quType, List<String> selectedKnowledgePoints) {
         System.out.println("🎯 开始按难度比例强制分配题目");
         
         // 1. 计算各难度级别需要的题目数量
@@ -154,19 +154,19 @@ public class AIExamGenerationService {
             // 选择简单题
             List<Qu> selectedEasy = selectQuestionsFromDifficultyGroup(
                 questionsByDifficulty.get(PromptConfig.DifficultyRatio.EASY_LEVEL), 
-                easyCount, "简单题", quType);
+                easyCount, "简单题", quType, selectedKnowledgePoints);
             selectedQuestions.addAll(selectedEasy);
             
             // 选择中等题
             List<Qu> selectedMedium = selectQuestionsFromDifficultyGroup(
                 questionsByDifficulty.get(PromptConfig.DifficultyRatio.MEDIUM_LEVEL), 
-                mediumCount, "中等题", quType);
+                mediumCount, "中等题", quType, selectedKnowledgePoints);
             selectedQuestions.addAll(selectedMedium);
             
             // 选择困难题
             List<Qu> selectedHard = selectQuestionsFromDifficultyGroup(
                 questionsByDifficulty.get(PromptConfig.DifficultyRatio.HARD_LEVEL), 
-                hardCount, "困难题", quType);
+                hardCount, "困难题", quType, selectedKnowledgePoints);
             selectedQuestions.addAll(selectedHard);
             
             System.out.println("✅ 难度比例分配完成！实际选择: " + selectedQuestions.size() + " 道题目");
@@ -177,7 +177,7 @@ public class AIExamGenerationService {
         } catch (Exception e) {
             System.err.println("❌ 难度比例分配失败: " + e.getMessage());
             // 回退到轻量级AI选择
-            return lightweightIntelligentSelection(allQuestions, totalSize, quType);
+            return lightweightIntelligentSelection(allQuestions, totalSize, quType, selectedKnowledgePoints);
         }
     }
     
@@ -190,7 +190,7 @@ public class AIExamGenerationService {
      * @return 选中的题目列表
      */
     private List<Qu> selectQuestionsFromDifficultyGroup(List<Qu> questionsInGroup, int requiredCount, 
-                                                       String difficultyName, Integer quType) {
+                                                       String difficultyName, Integer quType, List<String> selectedKnowledgePoints) {
         if (requiredCount <= 0) {
             System.out.println("⏭️ " + difficultyName + " 需要数量为0，跳过");
             return new ArrayList<>();
@@ -210,7 +210,7 @@ public class AIExamGenerationService {
         try {
             // 使用AI从该难度组中选择最优题目
             System.out.println("🤖 使用AI从 " + questionsInGroup.size() + " 道" + difficultyName + "中选择 " + requiredCount + " 道");
-            return lightweightIntelligentSelection(questionsInGroup, requiredCount, quType);
+            return lightweightIntelligentSelection(questionsInGroup, requiredCount, quType, selectedKnowledgePoints);
             
         } catch (Exception e) {
             System.err.println("❌ AI选择" + difficultyName + "失败，使用随机选择: " + e.getMessage());
@@ -224,13 +224,13 @@ public class AIExamGenerationService {
      * 轻量级AI智能选题方法
      * 只发送题目ID、题干和知识点给LLM，节省token和时间
      */
-    public List<Qu> lightweightIntelligentSelection(List<Qu> allQuestions, Integer size, Integer quType) {
+    public List<Qu> lightweightIntelligentSelection(List<Qu> allQuestions, Integer size, Integer quType, List<String> selectedKnowledgePoints) {
         try {
             // 1. 构建轻量级题目信息
             String lightweightQuestions = buildLightweightQuestionList(allQuestions, size, quType);
             
             // 2. 调用轻量级LLM服务
-            String selectedIds = callLightweightLLMService(lightweightQuestions, size);
+            String selectedIds = callLightweightLLMService(lightweightQuestions, size, selectedKnowledgePoints);
             
             // 3. 根据ID获取完整题目信息
             return parseAndReturnQuestions(selectedIds, allQuestions);
@@ -288,12 +288,13 @@ public class AIExamGenerationService {
      * 调用轻量级LLM服务进行智能选择
      * 使用新的selectlightweight端点，只发送关键信息
      */
-    private String callLightweightLLMService(String lightweightQuestions, Integer targetCount) {
+    private String callLightweightLLMService(String lightweightQuestions, Integer targetCount, List<String> selectedKnowledgePoints) {
         try {
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("selectionPrompt", PromptConfig.DIFFICULTY_ENFORCED_SELECTION_PROMPT);
+            requestBody.put("selectionPrompt", buildSelectionPromptWithKnowledgePoints(selectedKnowledgePoints));
             requestBody.put("lightweightQuestions", lightweightQuestions);
             requestBody.put("targetCount", targetCount);
+            requestBody.put("selectedKnowledgePoints", selectedKnowledgePoints);
             
             String result = aiProcessingService.selectLightweightQuestions(requestBody);
             
@@ -313,12 +314,13 @@ public class AIExamGenerationService {
      * 调用LLM服务进行智能选择
      * 使用专门的selectquestions端点
      */
-    private String callLLMService(String questionList, Integer targetCount) {
+    private String callLLMService(String questionList, Integer targetCount, List<String> selectedKnowledgePoints) {
         try {
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("selectionPrompt", PromptConfig.DIFFICULTY_ENFORCED_SELECTION_PROMPT);
+            requestBody.put("selectionPrompt", buildSelectionPromptWithKnowledgePoints(selectedKnowledgePoints));
             requestBody.put("questionList", questionList);
             requestBody.put("targetCount", targetCount);
+            requestBody.put("selectedKnowledgePoints", selectedKnowledgePoints);
             
             String result = aiProcessingService.selectQuestions(requestBody);
             
@@ -331,6 +333,27 @@ public class AIExamGenerationService {
         } catch (Exception e) {
             throw new RuntimeException("调用LLM服务异常: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 构建带知识点约束的选择提示词
+     */
+    private String buildSelectionPromptWithKnowledgePoints(List<String> selectedKnowledgePoints) {
+        String basePrompt = PromptConfig.DIFFICULTY_ENFORCED_SELECTION_PROMPT;
+        
+        if (CollectionUtils.isEmpty(selectedKnowledgePoints)) {
+            return basePrompt;
+        }
+        
+        // 添加知识点约束信息
+        StringBuilder promptWithKnowledge = new StringBuilder(basePrompt);
+        promptWithKnowledge.append("\n\n【当前选定的知识点】：\n");
+        for (String point : selectedKnowledgePoints) {
+            promptWithKnowledge.append("- ").append(point).append("\n");
+        }
+        promptWithKnowledge.append("\n【重要提醒】：只能选择包含上述知识点的题目，绝不允许选择包含其他知识点的题目！");
+        
+        return promptWithKnowledge.toString();
     }
 
     /**

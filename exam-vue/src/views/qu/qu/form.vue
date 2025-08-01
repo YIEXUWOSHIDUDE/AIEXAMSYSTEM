@@ -139,7 +139,7 @@
 
       </el-card>
 
-      <div v-if="postForm.quType!==4" class="filter-container" style="margin-top: 25px">
+      <div class="filter-container" style="margin-top: 25px">
 
         <el-button class="filter-item" type="primary" icon="el-icon-plus" size="small" plain @click="handleAdd">
           添加
@@ -151,6 +151,7 @@
           style="width: 100%;"
         >
           <el-table-column
+            v-if="postForm.quType !== 4"
             label="是否答案"
             width="120"
             align="center"
@@ -180,10 +181,10 @@
           </el-table-column>
 
           <el-table-column
-            label="答案内容"
+            :label="postForm.quType === 4 ? '参考答案' : '答案内容'"
           >
             <template v-slot="scope">
-              <el-input v-model="scope.row.content" type="textarea" />
+              <el-input v-model="scope.row.content" type="textarea" :rows="postForm.quType === 4 ? 4 : 2" />
             </template>
           </el-table-column>
 
@@ -337,6 +338,11 @@ export default {
         this.postForm.answerList.push({ isRight: false, content: '', analysis: '' })
         this.postForm.answerList.push({ isRight: false, content: '', analysis: '' })
         this.postForm.answerList.push({ isRight: false, content: '', analysis: '' })
+      }
+
+      if (v === 4) {
+        // 简答题添加一个默认答案
+        this.postForm.answerList.push({ isRight: true, content: '', analysis: '' })
       }
     },
 
@@ -635,6 +641,24 @@ export default {
 
           return
         }
+      }
+
+      if (this.postForm.quType === 4) {
+        // 简答题需要至少有一个答案内容
+        if (this.postForm.answerList.length === 0 || !this.postForm.answerList.some(item => item.content && item.content.trim())) {
+          this.$message({
+            message: '简答题至少需要有一个参考答案！',
+            type: 'warning'
+          })
+
+          return
+        }
+        // 确保简答题的答案都标记为正确
+        this.postForm.answerList.forEach(item => {
+          if (item.content && item.content.trim()) {
+            item.isRight = true
+          }
+        })
       }
 
       this.$refs.postForm.validate((valid) => {

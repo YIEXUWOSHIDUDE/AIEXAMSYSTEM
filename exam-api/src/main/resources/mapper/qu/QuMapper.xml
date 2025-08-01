@@ -64,10 +64,13 @@
             <foreach item="item" collection="excludes" separator="," open="(" close=")" index="">'${item}'</foreach>
         </if>
         <if test="selectedKnowledgePoints!=null and selectedKnowledgePoints.size()>0">
+            AND a.knowledge_points IS NOT NULL
+            AND a.knowledge_points != ''
+            AND a.knowledge_points != '[]'
             AND (
-            <foreach item="knowledgePoint" collection="selectedKnowledgePoints" separator=" OR " index="">
-                a.knowledge_points LIKE CONCAT('%"', #{knowledgePoint}, '"%')
-            </foreach>
+                <foreach item="knowledgePoint" collection="selectedKnowledgePoints" separator=" OR " index="">
+                    a.knowledge_points LIKE CONCAT('%"', #{knowledgePoint}, '"%')
+                </foreach>
             )
         </if>
         ORDER BY a.create_time DESC
