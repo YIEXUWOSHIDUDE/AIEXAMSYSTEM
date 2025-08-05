@@ -286,7 +286,27 @@ public class AIProcessingService {
         try {
             logger.info("🔍 开始验证题目-答案匹配质量");
             
-            JSONArray questions = JSON.parseArray(extractionResult);
+            // 检查提取结果是否为空或null
+            if (extractionResult == null || extractionResult.trim().isEmpty()) {
+                logger.warn("❌ 提取结果为空或null");
+                return false;
+            }
+            
+            // 记录原始数据用于调试
+            logger.info("📋 验证数据长度: {}", extractionResult.length());
+            logger.debug("📋 验证数据前200字符: {}", 
+                extractionResult.length() > 200 ? extractionResult.substring(0, 200) + "..." : extractionResult);
+            
+            JSONArray questions;
+            try {
+                questions = JSON.parseArray(extractionResult);
+            } catch (Exception jsonException) {
+                logger.error("❌ JSON解析失败: {}", jsonException.getMessage());
+                logger.error("❌ 无法解析的数据前500字符: {}", 
+                    extractionResult.length() > 500 ? extractionResult.substring(0, 500) + "..." : extractionResult);
+                return false;
+            }
+            
             if (questions == null || questions.isEmpty()) {
                 logger.warn("❌ 提取结果为空");
                 return false;
@@ -707,22 +727,29 @@ public class AIProcessingService {
             logger.info("✅ HTTP请求成功，解析响应内容");
             logger.debug("📥 完整响应: {}", response.getBody());
             
-            JSONObject responseObj = JSON.parseObject(response.getBody());
-            JSONArray choices = responseObj.getJSONArray("choices");
-            if (choices != null && !choices.isEmpty()) {
-                JSONObject firstChoice = choices.getJSONObject(0);
-                JSONObject messageObj = firstChoice.getJSONObject("message");
-                String content = messageObj.getString("content");
-                
-                if (content != null && !content.trim().isEmpty()) {
-                    logger.info("✅ AI响应成功，内容长度: {}", content.length());
-                    return content;
+            try {
+                JSONObject responseObj = JSON.parseObject(response.getBody());
+                JSONArray choices = responseObj.getJSONArray("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    JSONObject firstChoice = choices.getJSONObject(0);
+                    JSONObject messageObj = firstChoice.getJSONObject("message");
+                    String content = messageObj.getString("content");
+                    
+                    if (content != null && !content.trim().isEmpty()) {
+                        logger.info("✅ AI响应成功，内容长度: {}", content.length());
+                        return content;
+                    } else {
+                        logger.error("❌ AI返回内容为空");
+                        return null;
+                    }
                 } else {
-                    logger.error("❌ AI返回内容为空");
+                    logger.error("❌ AI响应格式错误：choices为空，完整响应: {}", response.getBody());
                     return null;
                 }
-            } else {
-                logger.error("❌ AI响应格式错误：choices为空，完整响应: {}", response.getBody());
+            } catch (Exception e) {
+                logger.error("❌ JSON解析失败: {}", e.getMessage());
+                logger.error("❌ 响应前500字符: {}", 
+                    response.getBody().length() > 500 ? response.getBody().substring(0, 500) : response.getBody());
                 return null;
             }
         } else {

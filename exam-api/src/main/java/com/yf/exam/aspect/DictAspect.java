@@ -190,7 +190,16 @@ public class DictAspect {
                     // 默认时间样式
                     fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                 }
-                item.put(field.getName(), fmt.format(new Date((Long) item.get(field.getName()))));
+                Object timeValue = item.get(field.getName());
+                if (timeValue instanceof Long) {
+                    item.put(field.getName(), fmt.format(new Date((Long) timeValue)));
+                } else if (timeValue instanceof String) {
+                    try {
+                        item.put(field.getName(), fmt.format(new Date(Long.parseLong((String) timeValue))));
+                    } catch (NumberFormatException e) {
+                        // Keep original value if can't parse
+                    }
+                }
                 continue;
 
             }

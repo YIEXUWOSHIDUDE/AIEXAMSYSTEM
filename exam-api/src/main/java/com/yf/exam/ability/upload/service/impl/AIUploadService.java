@@ -84,8 +84,15 @@ public class AIUploadService {
      * 2. 调用大模型，拆题 - 带学科年级约束
      */
     public JSONArray callAiExtractQuestions(String textContent, String subject, String grade) {
+        return callAiExtractQuestions(textContent, subject, grade, null);
+    }
+    
+    /**
+     * 2. 调用大模型，拆题 - 带学科年级约束和图片信息
+     */
+    public JSONArray callAiExtractQuestions(String textContent, String subject, String grade, JSONArray extractedImages) {
         // Direct extraction - no need for complex enhanced/original fallback
-        return callOriginalExtraction(textContent, subject, grade);
+        return callOriginalExtraction(textContent, subject, grade, extractedImages);
     }
 
 
@@ -100,6 +107,13 @@ public class AIUploadService {
      * 原始版题目提取 - 带学科年级约束
      */
     private JSONArray callOriginalExtraction(String textContent, String subject, String grade) {
+        return callOriginalExtraction(textContent, subject, grade, null);
+    }
+    
+    /**
+     * 原始版题目提取 - 带学科年级约束和图片信息
+     */
+    private JSONArray callOriginalExtraction(String textContent, String subject, String grade, JSONArray extractedImages) {
         try {
             // 调用智能提取接口 - 自动检测文档结构并选择最佳方法
             String response = aiProcessingService.extractQuestionsIntelligent(textContent);
@@ -137,6 +151,7 @@ public class AIUploadService {
                 }
             }
             
+            
             return questions;
             
         } catch (Exception e) {
@@ -164,6 +179,7 @@ public class AIUploadService {
     public ApiRest<?> saveQuestionsWithImages(JSONArray questions, JSONArray extractedImages, String subject, String grade) {
         try {
             int savedCount = 0;
+            int imageIndex = 0; // Sequential image assignment counter
             
             for (Object questionObj : questions) {
                 JSONObject questionJson = (JSONObject) questionObj;
@@ -173,15 +189,18 @@ public class AIUploadService {
                 qu.setQuType(questionJson.getInteger("quType"));
                 qu.setLevel(questionJson.getInteger("level") != null ? questionJson.getInteger("level") : 1);
                 
-                // Handle image URL - prioritize question-specific image, fallback to extracted images
+                // Handle image URL - sequential assignment from extracted images
                 String imageUrl = questionJson.getString("image");
-                if (imageUrl == null || imageUrl.trim().isEmpty()) {
-                    // Try to assign an extracted image if available
-                    if (extractedImages != null && !extractedImages.isEmpty() && savedCount < extractedImages.size()) {
-                        JSONObject imageInfo = extractedImages.getJSONObject(savedCount);
-                        imageUrl = imageInfo.getString("image_url");
-                    }
+                
+                // If question has image reference and we have extracted images available
+                if (extractedImages != null && imageUrl != null && !imageUrl.trim().isEmpty() && imageIndex < extractedImages.size()) {
+                    JSONObject extractedImage = extractedImages.getJSONObject(imageIndex);
+                    imageUrl = extractedImage.getString("image_url");
+                    imageIndex++; // Move to next image for next question
                 }
+                
+                // 转换图片URL为浏览器兼容格式
+                imageUrl = convertImageUrl(imageUrl);
                 qu.setImage(imageUrl != null ? imageUrl : "");
                 
                 qu.setContent(questionJson.getString("content"));
@@ -312,8 +331,9 @@ public class AIUploadService {
                 System.out.println("Successfully extracted " + imageCount + " images from the document");
             }
             
-            // 2. 调 LLM 拆题
-            JSONArray questions = callAiExtractQuestions(textContent, subject, grade);
+            // 2. 调 LLM 拆题 (pass extracted images info to AI)
+            JSONArray questions = callAiExtractQuestions(textContent, subject, grade, extractedImages);
+            
             
             // 3. 存库并返回正确格式（包含图片信息）
             return saveQuestionsWithImages(questions, extractedImages, subject, grade);
@@ -339,12 +359,22 @@ public class AIUploadService {
             logger.warn("直接解析JSON失败，尝试提取JSON数组: {}", e.getMessage());
             
             try {
+                // 处理markdown代码块格式 ```json ... ```
+                String cleanedResponse = response;
+                if (response.contains("```json")) {
+                    int startIndex = response.indexOf("```json") + 7;
+                    int endIndex = response.lastIndexOf("```");
+                    if (startIndex < endIndex) {
+                        cleanedResponse = response.substring(startIndex, endIndex).trim();
+                    }
+                }
+                
                 // 查找JSON数组的开始和结束位置
-                int startIndex = response.indexOf('[');
-                int endIndex = response.lastIndexOf(']');
+                int startIndex = cleanedResponse.indexOf('[');
+                int endIndex = cleanedResponse.lastIndexOf(']');
                 
                 if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
-                    String jsonString = response.substring(startIndex, endIndex + 1);
+                    String jsonString = cleanedResponse.substring(startIndex, endIndex + 1);
                     logger.info("提取到JSON字符串，长度: {}", jsonString.length());
                     return JSONArray.parseArray(jsonString);
                 } else {
@@ -357,5 +387,25 @@ public class AIUploadService {
                 throw new RuntimeException("AI响应格式错误，无法解析JSON: " + parseError.getMessage());
             }
         }
+    }
+
+
+    /**
+     * 转换图片URL为浏览器兼容格式
+     * WMF格式无法在浏览器中显示，需要转换
+     */
+    private String convertImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.trim().isEmpty()) {
+            return null;
+        }
+        
+        // 检查是否为WMF格式
+        if (imageUrl.toLowerCase().endsWith(".wmf")) {
+            // WMF格式浏览器无法显示，返回null让系统使用文本替代
+            logger.warn("WMF格式图片无法在浏览器中显示: {}", imageUrl);
+            return null;
+        }
+        
+        return imageUrl;
     }
 }
