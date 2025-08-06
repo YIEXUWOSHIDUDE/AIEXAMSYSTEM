@@ -267,16 +267,30 @@ public class AIUploadService {
                             answer.setQuId(qu.getId());
                             answer.setIsRight(optionJson.getBoolean("isRight") != null ? optionJson.getBoolean("isRight") : false);
                             
-                            // Handle answer image URL - extract marker from answer content  
+                            // Handle answer image URL - check both content and original image field
                             String answerContent = optionJson.getString("content");
-                            String answerImageMarker = extractImageMarkerFromContent(answerContent);
+                            String originalAnswerImage = optionJson.getString("image");
                             String answerImageUrl = "";
                             
+                            // First try to extract marker from answer content
+                            String answerImageMarker = extractImageMarkerFromContent(answerContent);
                             if (answerImageMarker != null && extractedImages != null) {
                                 String matchedUrl = findImageByReference(answerImageMarker, extractedImages);
-                                answerImageUrl = matchedUrl != null ? matchedUrl : "";
                                 if (matchedUrl != null) {
-                                    System.out.println("    ✅ Answer image match: " + answerImageMarker);
+                                    answerImageUrl = matchedUrl;
+                                    System.out.println("    ✅ Answer content marker: " + answerImageMarker);
+                                }
+                            }
+                            
+                            // Fallback: try original image field if it contains a marker
+                            if (answerImageUrl.isEmpty() && originalAnswerImage != null) {
+                                String originalMarker = extractImageMarkerFromContent(originalAnswerImage);
+                                if (originalMarker != null && extractedImages != null) {
+                                    String matchedUrl = findImageByReference(originalMarker, extractedImages);
+                                    if (matchedUrl != null) {
+                                        answerImageUrl = matchedUrl;
+                                        System.out.println("    ✅ Answer image field: " + originalMarker);
+                                    }
                                 }
                             }
                             
