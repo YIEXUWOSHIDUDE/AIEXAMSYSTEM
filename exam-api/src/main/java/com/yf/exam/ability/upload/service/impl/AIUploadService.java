@@ -193,14 +193,30 @@ public class AIUploadService {
                 String imageUrl = questionJson.getString("image");
                 
                 if (extractedImages != null && extractedImages.size() > 0) {
-                    // 1. Try to find matching image by reference text (e.g., "图K-19-1")
-                    String matchedImageUrl = findImageByReference(imageUrl, extractedImages);
+                    // 1. Extract image markers from question content
+                    String questionContent = questionJson.getString("content");
+                    String extractedImageMarker = extractImageMarkerFromContent(questionContent);
                     
-                    if (matchedImageUrl != null) {
-                        imageUrl = matchedImageUrl;
-                        System.out.println("  🎯 Found image by reference: " + imageUrl.substring(imageUrl.lastIndexOf('/') + 1));
+                    if (extractedImageMarker != null) {
+                        // Try to find image by the extracted marker
+                        String matchedImageUrl = findImageByReference(extractedImageMarker, extractedImages);
+                        if (matchedImageUrl != null) {
+                            imageUrl = matchedImageUrl;
+                            System.out.println("  🎯 Found image by content marker: " + extractedImageMarker);
+                        } else {
+                            imageUrl = "";
+                        }
+                    } else if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                        // 2. Try original image reference (fallback)
+                        String matchedImageUrl = findImageByReference(imageUrl, extractedImages);
+                        if (matchedImageUrl != null) {
+                            imageUrl = matchedImageUrl;
+                            System.out.println("  🎯 Found image by reference: " + imageUrl.substring(imageUrl.lastIndexOf('/') + 1));
+                        } else {
+                            imageUrl = "";
+                        }
                     } else {
-                        // 2. Use document position-based assignment
+                        // 3. Use document position-based assignment
                         String positionImageUrl = getImageByDocumentPosition(extractedImages, questionIndex);
                         if (positionImageUrl != null) {
                             imageUrl = positionImageUrl;
@@ -431,30 +447,49 @@ public class AIUploadService {
 
 
     /**
-     * 根据参考文本和文档位置查找匹配的图片URL
-     * 例如：imageReference = "图K-19-1" 尝试在extractedImages中找到对应的图片
+     * 根据图片标记查找匹配的图片URL
+     * 例如：imageMarker = "[IMAGE_1]" 在extractedImages中找到对应的图片
      */
-    private String findImageByReference(String imageReference, JSONArray extractedImages) {
-        if (imageReference == null || imageReference.trim().isEmpty() || extractedImages == null) {
+    private String findImageByReference(String imageMarker, JSONArray extractedImages) {
+        if (imageMarker == null || imageMarker.trim().isEmpty() || extractedImages == null) {
             return null;
         }
         
-        // 如果imageReference是标准URL格式，直接返回
-        if (imageReference.startsWith("http://") || imageReference.startsWith("https://")) {
-            return imageReference;
+        // 如果imageMarker是标准URL格式，直接返回
+        if (imageMarker.startsWith("http://") || imageMarker.startsWith("https://")) {
+            return imageMarker;
         }
         
-        // 尝试根据nearby_text匹配图片引用文本
+        // 查找图片标记，例如 [IMAGE_1], IMAGE_2 等
+        String cleanMarker = imageMarker.replaceAll("[\\[\\]]", "").trim(); // 移除方括号
+        
         for (Object imgObj : extractedImages) {
             JSONObject imageInfo = (JSONObject) imgObj;
-            String nearbyText = imageInfo.getString("nearby_text");
+            String imageId = imageInfo.getString("image_id");
             
-            if (nearbyText != null && !nearbyText.trim().isEmpty()) {
-                // 检查附近文本是否包含图片引用
-                if (nearbyText.contains(imageReference) || 
-                    imageReference.contains(nearbyText.substring(0, Math.min(10, nearbyText.length())))) {
-                    return imageInfo.getString("image_url");
+            if (imageId != null && imageId.equals(cleanMarker)) {
+                System.out.println("  🎯 Found perfect match for image marker: " + cleanMarker);
+                return imageInfo.getString("image_url");
+            }
+        }
+        
+        // 如果没有找到精确匹配，尝试模糊匹配
+        if (cleanMarker.startsWith("IMAGE_")) {
+            try {
+                String numberPart = cleanMarker.replace("IMAGE_", "");
+                int imageNum = Integer.parseInt(numberPart);
+                
+                // 尝试直接按编号匹配
+                for (Object imgObj : extractedImages) {
+                    JSONObject imageInfo = (JSONObject) imgObj;
+                    String imageId = imageInfo.getString("image_id");
+                    if (imageId != null && imageId.equals("IMAGE_" + imageNum)) {
+                        System.out.println("  🎯 Found numbered match for: IMAGE_" + imageNum);
+                        return imageInfo.getString("image_url");
+                    }
                 }
+            } catch (NumberFormatException e) {
+                // Ignore parsing errors
             }
         }
         
@@ -492,6 +527,28 @@ public class AIUploadService {
         if (actualIndex >= 0 && actualIndex < sortedImages.size()) {
             JSONObject selectedImage = sortedImages.getJSONObject(actualIndex);
             return selectedImage.getString("image_url");
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 从题目内容中提取图片标记
+     * 例如：从 "如图所示 [IMAGE_1] 求解..." 中提取 "IMAGE_1"
+     */
+    private String extractImageMarkerFromContent(String content) {
+        if (content == null || content.trim().isEmpty()) {
+            return null;
+        }
+        
+        // 使用正则表达式查找图片标记
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\[IMAGE_\\d+\\]");
+        java.util.regex.Matcher matcher = pattern.matcher(content);
+        
+        if (matcher.find()) {
+            String marker = matcher.group();
+            System.out.println("  📝 Extracted image marker from content: " + marker);
+            return marker;
         }
         
         return null;
