@@ -179,7 +179,7 @@ public class AIUploadService {
     public ApiRest<?> saveQuestionsWithImages(JSONArray questions, JSONArray extractedImages, String subject, String grade) {
         try {
             int savedCount = 0;
-            int imageIndex = 0; // Sequential image assignment counter
+            int questionIndex = 0; // Question index for document position matching
             
             for (Object questionObj : questions) {
                 JSONObject questionJson = (JSONObject) questionObj;
@@ -189,14 +189,29 @@ public class AIUploadService {
                 qu.setQuType(questionJson.getInteger("quType"));
                 qu.setLevel(questionJson.getInteger("level") != null ? questionJson.getInteger("level") : 1);
                 
-                // Handle image URL - sequential assignment from extracted images
+                // Handle image URL - match by reference or sequential assignment
                 String imageUrl = questionJson.getString("image");
                 
-                // If question has image reference and we have extracted images available
-                if (extractedImages != null && imageUrl != null && !imageUrl.trim().isEmpty() && imageIndex < extractedImages.size()) {
-                    JSONObject extractedImage = extractedImages.getJSONObject(imageIndex);
-                    imageUrl = extractedImage.getString("image_url");
-                    imageIndex++; // Move to next image for next question
+                if (extractedImages != null && extractedImages.size() > 0) {
+                    // 1. Try to find matching image by reference text (e.g., "图K-19-1")
+                    String matchedImageUrl = findImageByReference(imageUrl, extractedImages);
+                    
+                    if (matchedImageUrl != null) {
+                        imageUrl = matchedImageUrl;
+                        System.out.println("  🎯 Found image by reference: " + imageUrl.substring(imageUrl.lastIndexOf('/') + 1));
+                    } else {
+                        // 2. Use document position-based assignment
+                        String positionImageUrl = getImageByDocumentPosition(extractedImages, questionIndex);
+                        if (positionImageUrl != null) {
+                            imageUrl = positionImageUrl;
+                            System.out.println("  📍 Assigned image by position: " + imageUrl.substring(imageUrl.lastIndexOf('/') + 1));
+                        } else {
+                            imageUrl = "";
+                            System.out.println("  ❌ No image available for question " + questionIndex);
+                        }
+                    }
+                } else {
+                    imageUrl = "";
                 }
                 
                 // 转换图片URL为浏览器兼容格式
@@ -250,7 +265,30 @@ public class AIUploadService {
                             QuAnswer answer = new QuAnswer();
                             answer.setQuId(qu.getId());
                             answer.setIsRight(optionJson.getBoolean("isRight") != null ? optionJson.getBoolean("isRight") : false);
-                            answer.setImage(optionJson.getString("image") != null ? optionJson.getString("image") : "");
+                            
+                            // Handle answer image URL - similar logic as question images
+                            String answerImageUrl = optionJson.getString("image");
+                            if (extractedImages != null && extractedImages.size() > 0) {
+                                String matchedAnswerImageUrl = findImageByReference(answerImageUrl, extractedImages);
+                                if (matchedAnswerImageUrl != null) {
+                                    answerImageUrl = matchedAnswerImageUrl;
+                                } else if (answerImageUrl != null && !answerImageUrl.trim().isEmpty()) {
+                                    // Use document position for answer images too
+                                    String positionImageUrl = getImageByDocumentPosition(extractedImages, questionIndex + 100); // Offset for answers
+                                    if (positionImageUrl != null) {
+                                        answerImageUrl = positionImageUrl;
+                                        System.out.println("    📍 Assigned answer image by position: " + positionImageUrl.substring(positionImageUrl.lastIndexOf('/') + 1));
+                                    } else {
+                                        answerImageUrl = "";
+                                    }
+                                } else {
+                                    answerImageUrl = "";
+                                }
+                            } else {
+                                answerImageUrl = "";
+                            }
+                            
+                            answer.setImage(convertImageUrl(answerImageUrl) != null ? convertImageUrl(answerImageUrl) : "");
                             answer.setContent(optionJson.getString("content"));
                             answer.setAnalysis(optionJson.getString("analysis") != null ? optionJson.getString("analysis") : "");
                             
@@ -260,6 +298,8 @@ public class AIUploadService {
                 } else {
                     System.err.println("  ❌ Failed to save question to database");
                 }
+                
+                questionIndex++; // Move to next question
             }
             
             Map<String, Object> result = new HashMap<>();
@@ -391,6 +431,73 @@ public class AIUploadService {
 
 
     /**
+     * 根据参考文本和文档位置查找匹配的图片URL
+     * 例如：imageReference = "图K-19-1" 尝试在extractedImages中找到对应的图片
+     */
+    private String findImageByReference(String imageReference, JSONArray extractedImages) {
+        if (imageReference == null || imageReference.trim().isEmpty() || extractedImages == null) {
+            return null;
+        }
+        
+        // 如果imageReference是标准URL格式，直接返回
+        if (imageReference.startsWith("http://") || imageReference.startsWith("https://")) {
+            return imageReference;
+        }
+        
+        // 尝试根据nearby_text匹配图片引用文本
+        for (Object imgObj : extractedImages) {
+            JSONObject imageInfo = (JSONObject) imgObj;
+            String nearbyText = imageInfo.getString("nearby_text");
+            
+            if (nearbyText != null && !nearbyText.trim().isEmpty()) {
+                // 检查附近文本是否包含图片引用
+                if (nearbyText.contains(imageReference) || 
+                    imageReference.contains(nearbyText.substring(0, Math.min(10, nearbyText.length())))) {
+                    return imageInfo.getString("image_url");
+                }
+            }
+        }
+        
+        return null; // 未找到匹配，使用fallback逻辑
+    }
+    
+    /**
+     * 根据文档位置获取最合适的图片
+     * 用于为题目按文档顺序分配图片
+     */
+    private String getImageByDocumentPosition(JSONArray extractedImages, int questionIndex) {
+        if (extractedImages == null || extractedImages.isEmpty()) {
+            return null;
+        }
+        
+        // 按document_position排序获取图片
+        JSONArray sortedImages = new JSONArray();
+        for (Object imgObj : extractedImages) {
+            sortedImages.add(imgObj);
+        }
+        
+        // 简单排序（按document_position）
+        sortedImages.sort((a, b) -> {
+            JSONObject imgA = (JSONObject) a;
+            JSONObject imgB = (JSONObject) b;
+            Integer posA = imgA.getInteger("document_position");
+            Integer posB = imgB.getInteger("document_position");
+            if (posA == null) posA = 0;
+            if (posB == null) posB = 0;
+            return posA.compareTo(posB);
+        });
+        
+        // 根据题目索引分配图片（跳过第一张如果需要）
+        int actualIndex = questionIndex;
+        if (actualIndex >= 0 && actualIndex < sortedImages.size()) {
+            JSONObject selectedImage = sortedImages.getJSONObject(actualIndex);
+            return selectedImage.getString("image_url");
+        }
+        
+        return null;
+    }
+
+    /**
      * 转换图片URL为浏览器兼容格式
      * WMF格式无法在浏览器中显示，需要转换
      */
@@ -398,14 +505,8 @@ public class AIUploadService {
         if (imageUrl == null || imageUrl.trim().isEmpty()) {
             return null;
         }
-        
-        // 检查是否为WMF格式
-        if (imageUrl.toLowerCase().endsWith(".wmf")) {
-            // WMF格式浏览器无法显示，返回null让系统使用文本替代
-            logger.warn("WMF格式图片无法在浏览器中显示: {}", imageUrl);
-            return null;
-        }
-        
+
+        // WMF转换已在Python服务中处理，这里收到的应该是PNG URL
         return imageUrl;
     }
 }
