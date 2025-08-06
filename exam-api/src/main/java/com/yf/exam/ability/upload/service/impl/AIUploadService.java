@@ -192,42 +192,27 @@ public class AIUploadService {
                 // Handle image URL - match by reference or sequential assignment
                 String imageUrl = questionJson.getString("image");
                 
-                if (extractedImages != null && extractedImages.size() > 0) {
-                    // 1. Extract image markers from question content
-                    String questionContent = questionJson.getString("content");
-                    String extractedImageMarker = extractImageMarkerFromContent(questionContent);
-                    
-                    if (extractedImageMarker != null) {
-                        // Try to find image by the extracted marker
-                        String matchedImageUrl = findImageByReference(extractedImageMarker, extractedImages);
-                        if (matchedImageUrl != null) {
-                            imageUrl = matchedImageUrl;
-                            System.out.println("  🎯 Found image by content marker: " + extractedImageMarker);
-                        } else {
-                            imageUrl = "";
-                        }
-                    } else if (imageUrl != null && !imageUrl.trim().isEmpty()) {
-                        // 2. Try original image reference (fallback)
-                        String matchedImageUrl = findImageByReference(imageUrl, extractedImages);
-                        if (matchedImageUrl != null) {
-                            imageUrl = matchedImageUrl;
-                            System.out.println("  🎯 Found image by reference: " + imageUrl.substring(imageUrl.lastIndexOf('/') + 1));
-                        } else {
-                            imageUrl = "";
-                        }
+                // Simple: extract image marker from question content and match directly
+                String questionContent = questionJson.getString("content");
+                String imageMarker = extractImageMarkerFromContent(questionContent);
+                
+                System.out.println("  🔍 Question " + questionIndex + " content: " + (questionContent != null ? questionContent.substring(0, Math.min(100, questionContent.length())) + "..." : "null"));
+                System.out.println("  🏷️ Extracted marker: " + imageMarker);
+                
+                if (imageMarker != null && extractedImages != null) {
+                    // Direct match by image_id
+                    String matchedUrl = findImageByReference(imageMarker, extractedImages);
+                    imageUrl = matchedUrl != null ? matchedUrl : "";
+                    if (matchedUrl != null) {
+                        System.out.println("  ✅ Direct match: " + imageMarker + " → " + matchedUrl.substring(matchedUrl.lastIndexOf('/') + 1));
                     } else {
-                        // 3. Use document position-based assignment
-                        String positionImageUrl = getImageByDocumentPosition(extractedImages, questionIndex);
-                        if (positionImageUrl != null) {
-                            imageUrl = positionImageUrl;
-                            System.out.println("  📍 Assigned image by position: " + imageUrl.substring(imageUrl.lastIndexOf('/') + 1));
-                        } else {
-                            imageUrl = "";
-                            System.out.println("  ❌ No image available for question " + questionIndex);
-                        }
+                        System.out.println("  ❌ No match found for: " + imageMarker);
                     }
                 } else {
                     imageUrl = "";
+                    if (imageMarker == null) {
+                        System.out.println("  ⚪ No image marker found in question content");
+                    }
                 }
                 
                 // 转换图片URL为浏览器兼容格式
@@ -282,26 +267,17 @@ public class AIUploadService {
                             answer.setQuId(qu.getId());
                             answer.setIsRight(optionJson.getBoolean("isRight") != null ? optionJson.getBoolean("isRight") : false);
                             
-                            // Handle answer image URL - similar logic as question images
-                            String answerImageUrl = optionJson.getString("image");
-                            if (extractedImages != null && extractedImages.size() > 0) {
-                                String matchedAnswerImageUrl = findImageByReference(answerImageUrl, extractedImages);
-                                if (matchedAnswerImageUrl != null) {
-                                    answerImageUrl = matchedAnswerImageUrl;
-                                } else if (answerImageUrl != null && !answerImageUrl.trim().isEmpty()) {
-                                    // Use document position for answer images too
-                                    String positionImageUrl = getImageByDocumentPosition(extractedImages, questionIndex + 100); // Offset for answers
-                                    if (positionImageUrl != null) {
-                                        answerImageUrl = positionImageUrl;
-                                        System.out.println("    📍 Assigned answer image by position: " + positionImageUrl.substring(positionImageUrl.lastIndexOf('/') + 1));
-                                    } else {
-                                        answerImageUrl = "";
-                                    }
-                                } else {
-                                    answerImageUrl = "";
+                            // Handle answer image URL - extract marker from answer content  
+                            String answerContent = optionJson.getString("content");
+                            String answerImageMarker = extractImageMarkerFromContent(answerContent);
+                            String answerImageUrl = "";
+                            
+                            if (answerImageMarker != null && extractedImages != null) {
+                                String matchedUrl = findImageByReference(answerImageMarker, extractedImages);
+                                answerImageUrl = matchedUrl != null ? matchedUrl : "";
+                                if (matchedUrl != null) {
+                                    System.out.println("    ✅ Answer image match: " + answerImageMarker);
                                 }
-                            } else {
-                                answerImageUrl = "";
                             }
                             
                             answer.setImage(convertImageUrl(answerImageUrl) != null ? convertImageUrl(answerImageUrl) : "");
@@ -532,6 +508,219 @@ public class AIUploadService {
         return null;
     }
     
+    /**
+     * 综合匹配策略 - 尝试多种方法找到最佳图片匹配
+     */
+    private String findBestImageMatch(String questionContent, String imageReference, JSONArray extractedImages, int questionIndex) {
+        System.out.println("  🔍 Starting comprehensive image matching for question " + questionIndex);
+        
+        // Strategy 1: Extract and match image markers from content [IMAGE_1]
+        String extractedImageMarker = extractImageMarkerFromContent(questionContent);
+        if (extractedImageMarker != null) {
+            String matchedUrl = findImageByReference(extractedImageMarker, extractedImages);
+            if (matchedUrl != null) {
+                System.out.println("  🎯 Strategy 1 SUCCESS: Found by content marker " + extractedImageMarker);
+                return matchedUrl;
+            }
+        }
+        
+        // Strategy 2: Try exact matching with AI-provided image reference
+        if (imageReference != null && !imageReference.trim().isEmpty()) {
+            String matchedUrl = findImageByReference(imageReference, extractedImages);
+            if (matchedUrl != null) {
+                System.out.println("  🎯 Strategy 2 SUCCESS: Found by AI reference " + imageReference);
+                return matchedUrl;
+            }
+        }
+        
+        // Strategy 3: Fuzzy matching - try to find references in nearby text
+        String fuzzyMatchedUrl = findImageByFuzzyMatching(questionContent, imageReference, extractedImages);
+        if (fuzzyMatchedUrl != null) {
+            System.out.println("  🎯 Strategy 3 SUCCESS: Found by fuzzy matching");
+            return fuzzyMatchedUrl;
+        }
+        
+        // Strategy 4: Context-based matching using document position
+        String contextMatchedUrl = findImageByContext(questionContent, extractedImages, questionIndex);
+        if (contextMatchedUrl != null) {
+            System.out.println("  🎯 Strategy 4 SUCCESS: Found by context matching");
+            return contextMatchedUrl;
+        }
+        
+        // Strategy 5: Smart positional assignment (improved)
+        String positionUrl = getSmartPositionalImage(extractedImages, questionIndex);
+        if (positionUrl != null) {
+            System.out.println("  📍 Strategy 5 SUCCESS: Smart positional assignment");
+            return positionUrl;
+        }
+        
+        System.out.println("  ❌ All strategies failed for question " + questionIndex);
+        return "";
+    }
+    
+    /**
+     * 文本锚点匹配策略 - 基于before/after text anchors精确匹配
+     */
+    private String findImageByFuzzyMatching(String questionContent, String imageReference, JSONArray extractedImages) {
+        if (questionContent == null) return null;
+        
+        for (Object imgObj : extractedImages) {
+            JSONObject imageInfo = (JSONObject) imgObj;
+            String anchorBefore = imageInfo.getString("anchor_before");
+            String anchorAfter = imageInfo.getString("anchor_after");
+            
+            // Strategy 1: Check if question content contains both anchors
+            if (anchorBefore != null && anchorAfter != null && 
+                !anchorBefore.trim().isEmpty() && !anchorAfter.trim().isEmpty()) {
+                
+                if (questionContent.contains(anchorBefore) && questionContent.contains(anchorAfter)) {
+                    // Check if anchors appear in the right order
+                    int beforePos = questionContent.indexOf(anchorBefore);
+                    int afterPos = questionContent.indexOf(anchorAfter);
+                    if (beforePos < afterPos && (afterPos - beforePos) < 100) { // Reasonable distance
+                        System.out.println("  🎯 Perfect anchor match: '" + anchorBefore + "' → '" + anchorAfter + "'");
+                        return imageInfo.getString("image_url");
+                    }
+                }
+            }
+            
+            // Strategy 2: Check for single anchor match
+            if (anchorBefore != null && !anchorBefore.trim().isEmpty() && 
+                questionContent.contains(anchorBefore)) {
+                System.out.println("  📍 Partial anchor match: '" + anchorBefore + "'");
+                return imageInfo.getString("image_url");
+            }
+            
+            // Strategy 3: Fallback to paragraph text matching
+            String paragraphText = imageInfo.getString("paragraph_text");
+            if (paragraphText != null && !paragraphText.trim().isEmpty()) {
+                // Check word overlap between question and paragraph
+                String[] questionWords = questionContent.split("\\s+");
+                String[] paraWords = paragraphText.split("\\s+");
+                
+                int matchCount = 0;
+                for (String qWord : questionWords) {
+                    for (String pWord : paraWords) {
+                        if (qWord.length() > 2 && (qWord.equals(pWord) || qWord.contains(pWord) || pWord.contains(qWord))) {
+                            matchCount++;
+                        }
+                    }
+                }
+                
+                // If significant word overlap, consider it a match
+                if (matchCount >= Math.min(3, questionWords.length / 4)) {
+                    System.out.println("  📝 Word overlap match: " + matchCount + " matches");
+                    return imageInfo.getString("image_url");
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 上下文匹配策略 - 基于文档位置和内容相似度
+     */
+    private String findImageByContext(String questionContent, JSONArray extractedImages, int questionIndex) {
+        if (questionContent == null) return null;
+        
+        // Look for images whose nearby_text is most similar to question content
+        JSONObject bestMatch = null;
+        int bestScore = 0;
+        
+        for (Object imgObj : extractedImages) {
+            JSONObject imageInfo = (JSONObject) imgObj;
+            String nearbyText = imageInfo.getString("nearby_text");
+            Integer docPosition = imageInfo.getInteger("document_position");
+            
+            if (nearbyText != null && docPosition != null) {
+                int contextScore = calculateContextSimilarity(questionContent, nearbyText);
+                
+                // Boost score if document position is reasonable for this question
+                int expectedPosition = questionIndex * 5; // Rough estimate
+                int positionDiff = Math.abs(docPosition - expectedPosition);
+                if (positionDiff < 10) {
+                    contextScore += 2;
+                }
+                
+                if (contextScore > bestScore) {
+                    bestScore = contextScore;
+                    bestMatch = imageInfo;
+                }
+            }
+        }
+        
+        return bestMatch != null ? bestMatch.getString("image_url") : null;
+    }
+    
+    /**
+     * 智能位置分配 - 改进的位置匹配逻辑
+     */
+    private String getSmartPositionalImage(JSONArray extractedImages, int questionIndex) {
+        if (extractedImages.isEmpty()) return null;
+        
+        // Sort images by document position
+        JSONArray sortedImages = new JSONArray();
+        for (Object imgObj : extractedImages) {
+            sortedImages.add(imgObj);
+        }
+        
+        sortedImages.sort((a, b) -> {
+            JSONObject imgA = (JSONObject) a;
+            JSONObject imgB = (JSONObject) b;
+            Integer posA = imgA.getInteger("document_position");
+            Integer posB = imgB.getInteger("document_position");
+            if (posA == null) posA = 0;
+            if (posB == null) posB = 0;
+            return posA.compareTo(posB);
+        });
+        
+        // Smart assignment - avoid simple 1:1 mapping
+        int totalImages = sortedImages.size();
+        int adjustedIndex = questionIndex;
+        
+        // If we have more questions than images, distribute images evenly
+        if (questionIndex >= totalImages) {
+            adjustedIndex = questionIndex % totalImages;
+        }
+        
+        // Skip first image if it seems to be a title/header image
+        if (adjustedIndex == 0 && totalImages > 3) {
+            adjustedIndex = 1;
+        }
+        
+        if (adjustedIndex < totalImages) {
+            JSONObject selectedImage = sortedImages.getJSONObject(adjustedIndex);
+            return selectedImage.getString("image_url");
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 计算内容相似度得分
+     */
+    private int calculateContextSimilarity(String content1, String content2) {
+        if (content1 == null || content2 == null) return 0;
+        
+        String[] words1 = content1.toLowerCase().split("\\s+");
+        String[] words2 = content2.toLowerCase().split("\\s+");
+        
+        int matches = 0;
+        for (String word1 : words1) {
+            if (word1.length() > 2) {
+                for (String word2 : words2) {
+                    if (word2.contains(word1) || word1.contains(word2)) {
+                        matches++;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return matches;
+    }
+
     /**
      * 从题目内容中提取图片标记
      * 例如：从 "如图所示 [IMAGE_1] 求解..." 中提取 "IMAGE_1"
