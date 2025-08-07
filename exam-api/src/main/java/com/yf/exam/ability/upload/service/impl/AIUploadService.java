@@ -12,7 +12,6 @@ import com.yf.exam.modules.qu.entity.QuAnswer;
 import com.yf.exam.modules.qu.service.QuService;
 import com.yf.exam.modules.qu.service.QuAnswerService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Date;
+import java.util.ArrayList;
 
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -31,6 +31,34 @@ import org.slf4j.LoggerFactory;
 
 @Service
 public class AIUploadService {
+
+    /**
+     * 一致性检查结果类
+     */
+    public static class ConsistencyCheckResult {
+        private boolean consistent = true;
+        private int warningCount = 0;
+        private List<String> warnings = new ArrayList<>();
+        
+        public boolean isConsistent() { return consistent; }
+        public void setConsistent(boolean consistent) { this.consistent = consistent; }
+        public int getWarningCount() { return warningCount; }
+        public List<String> getWarnings() { return warnings; }
+        
+        public void addWarning(String warning) {
+            warnings.add(warning);
+            warningCount++;
+            consistent = false;
+        }
+        
+        public Map<String, Object> toMap() {
+            Map<String, Object> result = new HashMap<>();
+            result.put("consistent", consistent);
+            result.put("warningCount", warningCount);
+            result.put("warnings", warnings);
+            return result;
+        }
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(AIUploadService.class);
 
@@ -55,15 +83,20 @@ public class AIUploadService {
     }
     
     /**
-     * 1. 先抽图片和文本（Python微服务） - 支持选择输出格式
+     * 1. 先抽图片和文本（Python微服务） - 支持选择输出格式和分配策略
      */
     public String extractTextFromFile(MultipartFile file, boolean legacyFormat) {
+        return extractTextFromFile(file, legacyFormat, "smart");
+    }
+    
+    public String extractTextFromFile(MultipartFile file, boolean legacyFormat, String assignmentStrategy) {
         try {
             String pythonUrl = "http://localhost:8003/api/extract_questions_with_images";
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             Resource fileResource = new MultipartInputStreamFileResource(file.getInputStream(), file.getOriginalFilename());
             body.add("file", fileResource);
             body.add("legacy_format", legacyFormat); // 传递格式参数
+            body.add("assignment_strategy", assignmentStrategy); // 传递分配策略
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -209,6 +242,87 @@ public class AIUploadService {
             throw new RuntimeException("结构化拆题异常: " + e.getMessage(), e);
         }
     }
+    
+    /**
+     * 执行一致性检查
+     */
+    private ConsistencyCheckResult performConsistencyCheck(JSONArray questions, JSONObject doclingDocument) {
+        ConsistencyCheckResult result = new ConsistencyCheckResult();
+        
+        try {
+            // 获取图片数量
+            JSONObject imagesDict = doclingDocument.getJSONObject("images");
+            int totalImages = imagesDict != null ? imagesDict.size() : 0;
+            
+            // 获取内容块数量
+            JSONArray contentBlocks = doclingDocument.getJSONArray("content_blocks");
+            int totalBlocks = contentBlocks != null ? contentBlocks.size() : 0;
+            
+            // 检查题目数量与图片数量
+            int questionsWithImages = 0;
+            int totalMarkersFound = 0;
+            
+            for (Object questionObj : questions) {
+                JSONObject question = (JSONObject) questionObj;
+                String content = question.getString("content");
+                
+                if (content != null) {
+                    // 统计图片标记
+                    java.util.regex.Pattern markerPattern = java.util.regex.Pattern.compile("\\{\\{[A-Z_0-9]+\\}\\}");
+                    java.util.regex.Matcher matcher = markerPattern.matcher(content);
+                    int markerCount = 0;
+                    while (matcher.find()) {
+                        markerCount++;
+                    }
+                    
+                    totalMarkersFound += markerCount;
+                    if (markerCount > 0) {
+                        questionsWithImages++;
+                    }
+                }
+            }
+            
+            // 检查 1: 图片与标记数量不一致
+            if (totalImages != totalMarkersFound) {
+                result.addWarning("图片数量不一致: 有" + totalImages + "张图片，但只有" + totalMarkersFound + "个图片标记");
+            }
+            
+            // 检查 2: 题目数量与图片数量差异过大
+            if (totalImages > questions.size() * 2) {
+                result.addWarning("图片数量异常: 有" + totalImages + "张图片，但只有" + questions.size() + "道题目");
+            }
+            
+            // 检查 3: 题目内容过短（可能是错误识别）
+            int shortQuestions = 0;
+            for (Object questionObj : questions) {
+                JSONObject question = (JSONObject) questionObj;
+                String content = question.getString("content");
+                if (content != null && content.trim().length() < 10) {
+                    shortQuestions++;
+                }
+            }
+            
+            if (shortQuestions > 0) {
+                result.addWarning("发现" + shortQuestions + "道内容过短的题目，可能存在识别错误");
+            }
+            
+            // 检查 4: 结构化信息一致性
+            if (totalBlocks > questions.size() * 5) {
+                result.addWarning("文档结构复杂: 有" + totalBlocks + "个内容块，可能影响题目识别准确性");
+            }
+            
+            logger.info("🔍 一致性检查结果: {}个警告", result.getWarningCount());
+            for (String warning : result.getWarnings()) {
+                logger.warn("⚠️ {}", warning);
+            }
+            
+        } catch (Exception e) {
+            logger.error("一致性检查异常", e);
+            result.addWarning("一致性检查失败: " + e.getMessage());
+        }
+        
+        return result;
+    }
 
 
     /**
@@ -318,30 +432,34 @@ public class AIUploadService {
                 qu.setQuType(questionJson.getInteger("quType"));
                 qu.setLevel(questionJson.getInteger("level") != null ? questionJson.getInteger("level") : 1);
                 
-                // 结构化图片处理 - 从image_refs解析实际URL
+                // 结构化图片处理 - 支持多图片
                 String blockId = questionJson.getString("block_id");
-                String questionImageUrl = "";
+                List<String> questionImageUrls = new ArrayList<>();
                 
-                // 优先使用image_refs解析图片URL
+                // 优先使用image_refs解析多图片URL
                 JSONArray imageRefs = questionJson.getJSONArray("image_refs");
                 if (imageRefs != null && !imageRefs.isEmpty()) {
-                    String imageRef = imageRefs.getString(0); // 取第一个图片引用
-                    if (imageUrlMap.containsKey(imageRef)) {
-                        questionImageUrl = imageUrlMap.get(imageRef);
-                        logger.info("🖼️ 题目图片解析: {} ({}) → {}", blockId, imageRef, questionImageUrl);
-                    } else {
-                        logger.warn("⚠️ 未找到图片引用: {} (block: {})", imageRef, blockId);
+                    for (int i = 0; i < imageRefs.size(); i++) {
+                        String imageRef = imageRefs.getString(i);
+                        if (imageUrlMap.containsKey(imageRef)) {
+                            String imageUrl = imageUrlMap.get(imageRef);
+                            questionImageUrls.add(imageUrl);
+                            logger.info("🖼️ 题目图片解析: {} ({}) → {}", blockId, imageRef, imageUrl);
+                        } else {
+                            logger.warn("⚠️ 未找到图片引用: {} (block: {})", imageRef, blockId);
+                        }
                     }
                 } else {
                     // 降级：尝试直接从image字段获取
                     String directImageUrl = questionJson.getString("image");
                     if (directImageUrl != null && !directImageUrl.trim().isEmpty()) {
-                        questionImageUrl = directImageUrl;
-                        logger.info("🖼️ 题目图片直接: {} → {}", blockId, questionImageUrl);
+                        questionImageUrls.add(directImageUrl);
+                        logger.info("🖼️ 题目图片直接: {} → {}", blockId, directImageUrl);
                     }
                 }
                 
-                qu.setImage(questionImageUrl);
+                // 设置多图片支持
+                qu.setImageList(questionImageUrls);
                 
                 qu.setContent(questionJson.getString("content"));
                 qu.setCreateTime(new Date());
@@ -389,29 +507,33 @@ public class AIUploadService {
                             answer.setQuId(qu.getId());
                             answer.setIsRight(optionJson.getBoolean("isRight") != null ? optionJson.getBoolean("isRight") : false);
                             
-                            // 结构化选项图片处理 - 从image_refs解析实际URL
-                            String optionImageUrl = "";
+                            // 结构化选项图片处理 - 支持多图片
+                            List<String> optionImageUrls = new ArrayList<>();
                             
-                            // 优先使用image_refs解析选项图片URL
+                            // 优先使用image_refs解析多图片URL
                             JSONArray optionImageRefs = optionJson.getJSONArray("image_refs");
                             if (optionImageRefs != null && !optionImageRefs.isEmpty()) {
-                                String imageRef = optionImageRefs.getString(0); // 取第一个图片引用
-                                if (imageUrlMap.containsKey(imageRef)) {
-                                    optionImageUrl = imageUrlMap.get(imageRef);
-                                    logger.info("    🖼️ 选项图片解析: {} → {}", imageRef, optionImageUrl);
-                                } else {
-                                    logger.warn("    ⚠️ 未找到选项图片引用: {}", imageRef);
+                                for (int j = 0; j < optionImageRefs.size(); j++) {
+                                    String imageRef = optionImageRefs.getString(j);
+                                    if (imageUrlMap.containsKey(imageRef)) {
+                                        String imageUrl = imageUrlMap.get(imageRef);
+                                        optionImageUrls.add(imageUrl);
+                                        logger.info("    🖼️ 选项图片解析: {} → {}", imageRef, imageUrl);
+                                    } else {
+                                        logger.warn("    ⚠️ 未找到选项图片引用: {}", imageRef);
+                                    }
                                 }
                             } else {
                                 // 降级：尝试直接从image字段获取
                                 String directImageUrl = optionJson.getString("image");
                                 if (directImageUrl != null && !directImageUrl.trim().isEmpty()) {
-                                    optionImageUrl = directImageUrl;
-                                    logger.info("    🖼️ 选项图片直接: {}", optionImageUrl);
+                                    optionImageUrls.add(directImageUrl);
+                                    logger.info("    🖼️ 选项图片直接: {}", directImageUrl);
                                 }
                             }
                             
-                            answer.setImage(optionImageUrl);
+                            // 设置多图片支持
+                            answer.setImageList(optionImageUrls);
                             
                             answer.setContent(optionJson.getString("content"));
                             answer.setAnalysis(optionJson.getString("analysis") != null ? optionJson.getString("analysis") : "");
@@ -424,18 +546,29 @@ public class AIUploadService {
                 }
             }
             
+            // 🔍 一致性检测
+            ConsistencyCheckResult consistency = performConsistencyCheck(questions, doclingDocument);
+            
             Map<String, Object> result = new HashMap<>();
             result.put("savedCount", savedCount);
             result.put("totalCount", questions.size());
             result.put("imageCount", imageUrlMap.size());
             result.put("extractionMethod", "structured");
+            result.put("consistencyCheck", consistency.toMap());
             
             ApiRest<Map<String, Object>> apiRest = new ApiRest<>();
             apiRest.setCode(0);
+            
             String message = "结构化导入成功: " + savedCount + " 道题目";
             if (imageUrlMap.size() > 0) {
                 message += "，" + imageUrlMap.size() + " 张图片";
             }
+            
+            // 添加一致性警告
+            if (!consistency.isConsistent()) {
+                message += "\n⚠️ 发现 " + consistency.getWarningCount() + " 个潜在问题，建议人工校对";
+            }
+            
             apiRest.setMsg(message);
             apiRest.setData(result);
             
@@ -656,11 +789,15 @@ public class AIUploadService {
      * 4. 全流程入口（带学科年级约束）
      */
     public ApiRest<?> handleUploadAndSplit(MultipartFile file, String subject, String grade) {
+        return handleUploadAndSplit(file, subject, grade, "smart");
+    }
+    
+    public ApiRest<?> handleUploadAndSplit(MultipartFile file, String subject, String grade, String assignmentStrategy) {
         try {
             logger.info("🔍 开始完整流程诊断 - 文件: {}", file.getOriginalFilename());
             
-            // 1. 先抽文件内容
-            String extractJsonStr = extractTextFromFile(file);
+            // 1. 先抽文件内容 (使用指定的分配策略)
+            String extractJsonStr = extractTextFromFile(file, true, assignmentStrategy);
             JSONObject extractBody = JSONObject.parseObject(extractJsonStr);
             
             // 🔍 DIAGNOSTIC: 检查Python返回的内容

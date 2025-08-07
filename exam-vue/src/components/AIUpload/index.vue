@@ -33,6 +33,19 @@
                 <el-option label="高三" value="高三" />
               </el-select>
             </el-form-item>
+            <el-form-item label="分配策略">
+              <el-radio-group v-model="assignmentStrategy" size="small">
+                <el-radio-button label="smart">智能匹配</el-radio-button>
+                <el-radio-button label="number_based">编号匹配</el-radio-button>
+              </el-radio-group>
+              <el-tooltip effect="dark" placement="top">
+                <div slot="content">
+                  智能匹配：综合文档结构和引用关系<br/>
+                  编号匹配：根据题目和图片编号精确匹配
+                </div>
+                <i class="el-icon-question" style="margin-left: 8px; color: #909399; cursor: help;"></i>
+              </el-tooltip>
+            </el-form-item>
           </el-form>
         </div>
         
@@ -89,6 +102,52 @@
             :type="resultType"
             show-icon
           />
+          
+          <!-- 一致性检查警告 -->
+          <div v-if="consistencyCheck && !consistencyCheck.consistent" class="consistency-warnings">
+            <el-alert
+              title="⚠️ 发现潜在问题，建议人工校对"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="warning-alert">
+              <div slot="title">
+                <i class="el-icon-warning" />
+                发现 {{ consistencyCheck.warningCount }} 个潜在问题，建议人工校对
+              </div>
+              <div class="warning-details">
+                <ul>
+                  <li v-for="(warning, index) in consistencyCheck.warnings" :key="index">
+                    <i class="el-icon-info" /> {{ warning }}
+                  </li>
+                </ul>
+                <div class="warning-suggestions">
+                  <p><strong>建议操作：</strong></p>
+                  <ul>
+                    <li>检查原始文档的格式和质量</li>
+                    <li>确认题目与图片的对应关系</li>
+                    <li>导入后逐一检查题目内容</li>
+                    <li>必要时可以手动调整图片分配</li>
+                  </ul>
+                </div>
+              </div>
+            </el-alert>
+          </div>
+          
+          <!-- 高质量提示 -->
+          <div v-if="consistencyCheck && consistencyCheck.consistent" class="quality-indicator">
+            <el-alert
+              title="✅ 文档解析质量良好"
+              type="success"
+              :closable="false"
+              show-icon>
+              <div slot="title">
+                <i class="el-icon-success" />
+                文档解析质量良好，未发现明显问题
+              </div>
+              <p>图片和题目分配合理，可以放心导入。</p>
+            </el-alert>
+          </div>
 
           <div v-if="extractedQuestions.length > 0" class="questions-preview">
             <h4><i class="el-icon-document" /> 提取到的题目预览 (共{{ extractedQuestions.length }}道)</h4>
@@ -159,12 +218,99 @@
           确认导入
         </el-button>
         <el-button
+          v-if="uploadResult && consistencyCheck && !consistencyCheck.consistent"
+          type="warning"
+          @click="showManualCorrection"
+        >
+          手动校正
+        </el-button>
+        <el-button
           v-if="uploadResult && resultType !== 'success'"
           type="primary"
           @click="resetUpload"
         >
           重新上传
         </el-button>
+      </span>
+    </el-dialog>
+
+    <!-- 手动校正对话框 -->
+    <el-dialog
+      :visible.sync="correctionDialogVisible"
+      title="手动校正图片分配"
+      width="80%"
+      :close-on-click-modal="false"
+    >
+      <div class="correction-container">
+        <el-alert
+          title="请为每道题目分配正确的图片"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 20px;"
+        >
+          <p>您可以通过拖拽重新排序，或点击图片进行分配。</p>
+        </el-alert>
+
+        <div class="correction-content">
+          <!-- 题目列表 -->
+          <div class="questions-section">
+            <h4><i class="el-icon-document" /> 题目列表</h4>
+            <div class="question-correction-list">
+              <div
+                v-for="(question, qIndex) in correctionQuestions"
+                :key="'q-' + qIndex"
+                class="question-correction-item"
+                :class="{ active: selectedQuestionIndex === qIndex }"
+                @click="selectQuestion(qIndex)"
+              >
+                <div class="question-header">
+                  <span class="question-number">{{ qIndex + 1 }}.</span>
+                  <span class="question-type">{{ getQuestionTypeName(question.quType) }}</span>
+                </div>
+                <div class="question-text">{{ question.content }}</div>
+                <div class="assigned-images">
+                  <div v-if="question.image_refs && question.image_refs.length > 0" class="image-preview">
+                    <img 
+                      v-for="(imageUrl, imgIndex) in question.image_refs"
+                      :key="'assigned-' + imgIndex"
+                      :src="imageUrl"
+                      class="assigned-image-thumb"
+                      @click.stop="removeImageFromQuestion(qIndex, imgIndex)"
+                      :title="'点击移除图片'"
+                    />
+                  </div>
+                  <div v-else class="no-images">未分配图片</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 图片库 -->
+          <div class="images-section">
+            <h4><i class="el-icon-picture" /> 可用图片</h4>
+            <div class="image-pool">
+              <div
+                v-for="(image, imgIndex) in correctionImages"
+                :key="'img-' + imgIndex"
+                class="correction-image-item"
+                :class="{ assigned: isImageAssigned(image.image_url) }"
+                @click="assignImageToQuestion(image.image_url)"
+              >
+                <img :src="image.image_url" class="correction-image" />
+                <div class="image-info">
+                  <span class="image-type">{{ getImageTypeText(image.image_type) }}</span>
+                  <span v-if="image.page_number" class="page-info">第{{ image.page_number }}页</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="cancelCorrection">取消</el-button>
+        <el-button type="primary" @click="applyCorrections">应用修正</el-button>
       </span>
     </el-dialog>
   </div>
@@ -190,6 +336,7 @@ export default {
       // 学科年级选择
       selectedSubject: '',
       selectedGrade: '',
+      assignmentStrategy: 'smart', // 默认使用智能匹配策略
       
       // 上传相关
       uploadUrl: `${process.env.VUE_APP_BASE_API}/exam/api/ai-upload/upload`,
@@ -210,6 +357,13 @@ export default {
       resultDescription: '',
       extractedQuestions: [],
       extractedImages: [],
+      consistencyCheck: null,
+      
+      // 手动校正相关
+      correctionDialogVisible: false,
+      correctionQuestions: [],
+      correctionImages: [],
+      selectedQuestionIndex: 0,
       
       // 题目类型映射
       questionTypeMap: {
@@ -242,7 +396,6 @@ export default {
   methods: {
     // 文件变化监听
     onFileChange(file, fileList) {
-      console.log('文件变化:', file, fileList)
       if (fileList.length > 0) {
         this.hasFile = true
       } else {
@@ -288,9 +441,7 @@ export default {
     
     // 开始上传
     startUpload() {
-      console.log('开始上传，hasFile:', this.hasFile)
       const fileList = this.$refs.upload.uploadFiles
-      console.log('文件列表:', fileList)
       
       if (fileList.length === 0) {
         this.$message.warning('请先选择文件')
@@ -308,10 +459,8 @@ export default {
       
       // 执行上传
       const file = fileList[0].raw
-      console.log('准备上传文件:', file)
       
-      aiUploadQuestions(file, this.selectedSubject, this.selectedGrade).then(response => {
-        console.log('上传成功:', response)
+      aiUploadQuestions(file, this.selectedSubject, this.selectedGrade, this.assignmentStrategy).then(response => {
         this.handleUploadSuccess(response)
       }).catch(error => {
         console.error('上传失败:', error)
@@ -380,6 +529,9 @@ export default {
         const totalCount = responseData.totalCount || questions.length
         const imageCount = responseData.imageCount || 0
         
+        // 获取一致性检查结果
+        this.consistencyCheck = responseData.consistencyCheck || null
+        
         this.extractedQuestions = questions
         this.extractedImages = responseData.images || []
         this.resultType = 'success'
@@ -390,6 +542,13 @@ export default {
           if (imageCount > 0) {
             description += `，提取了 ${imageCount} 张图片`
           }
+          
+          // 添加一致性检查提示
+          if (this.consistencyCheck && !this.consistencyCheck.consistent) {
+            this.resultType = 'warning'
+            description += `。\n⚠️ 检测到 ${this.consistencyCheck.warningCount} 个潜在问题，建议人工校对`
+          }
+          
           this.resultDescription = description + '。'
         } else if (questions.length > 0) {
           let description = `成功从文档中提取了 ${questions.length} 道题目`
@@ -408,6 +567,7 @@ export default {
         this.resultDescription = response.msg || '文件解析失败，请检查文件格式或内容'
         this.extractedQuestions = []
         this.extractedImages = []
+        this.consistencyCheck = null
       }
     },
     
@@ -475,10 +635,18 @@ export default {
       this.resultTitle = ''
       this.resultType = ''
       this.resultDescription = ''
+      this.consistencyCheck = null
+      
+      // 重置手动校正相关数据
+      this.correctionDialogVisible = false
+      this.correctionQuestions = []
+      this.correctionImages = []
+      this.selectedQuestionIndex = 0
       
       // 重置学科年级选择
       this.selectedSubject = ''
       this.selectedGrade = ''
+      this.assignmentStrategy = 'smart'
       
       // 清空文件列表
       if (this.$refs.upload) {
@@ -490,6 +658,111 @@ export default {
     closeDialog() {
       this.dialogVisible = false
       this.resetUpload()
+    },
+    
+    // 显示手动校正对话框
+    showManualCorrection() {
+      this.correctionDialogVisible = true
+      // 深拷贝数据以避免直接修改原始数据
+      this.correctionQuestions = JSON.parse(JSON.stringify(this.extractedQuestions))
+      this.correctionImages = JSON.parse(JSON.stringify(this.extractedImages))
+      this.selectedQuestionIndex = 0
+      
+      // 确保每道题目都有 image_refs 数组
+      this.correctionQuestions.forEach(question => {
+        if (!question.image_refs) {
+          question.image_refs = []
+        }
+      })
+    },
+    
+    // 选择题目
+    selectQuestion(index) {
+      this.selectedQuestionIndex = index
+    },
+    
+    // 分配图片给当前选中的题目
+    assignImageToQuestion(imageUrl) {
+      if (this.selectedQuestionIndex >= 0 && this.selectedQuestionIndex < this.correctionQuestions.length) {
+        const question = this.correctionQuestions[this.selectedQuestionIndex]
+        if (!question.image_refs.includes(imageUrl)) {
+          question.image_refs.push(imageUrl)
+        }
+      }
+    },
+    
+    // 从题目中移除图片
+    removeImageFromQuestion(questionIndex, imageIndex) {
+      if (questionIndex >= 0 && questionIndex < this.correctionQuestions.length) {
+        const question = this.correctionQuestions[questionIndex]
+        if (imageIndex >= 0 && imageIndex < question.image_refs.length) {
+          question.image_refs.splice(imageIndex, 1)
+        }
+      }
+    },
+    
+    // 检查图片是否已被分配
+    isImageAssigned(imageUrl) {
+      return this.correctionQuestions.some(question => 
+        question.image_refs && question.image_refs.includes(imageUrl)
+      )
+    },
+    
+    // 应用修正
+    applyCorrections() {
+      // 更新原始数据
+      this.extractedQuestions = JSON.parse(JSON.stringify(this.correctionQuestions))
+      
+      // 重新计算一致性检查
+      this.recalculateConsistency()
+      
+      this.correctionDialogVisible = false
+      this.$message.success('图片分配已更新！')
+    },
+    
+    // 取消修正
+    cancelCorrection() {
+      this.correctionDialogVisible = false
+    },
+    
+    // 重新计算一致性
+    recalculateConsistency() {
+      const warnings = []
+      let totalQuestions = this.extractedQuestions.length
+      let questionsWithImages = 0
+      let totalImages = this.extractedImages.length
+      let assignedImages = 0
+      
+      // 统计分配情况
+      this.extractedQuestions.forEach((question, index) => {
+        if (question.image_refs && question.image_refs.length > 0) {
+          questionsWithImages++
+          assignedImages += question.image_refs.length
+        }
+      })
+      
+      // 重新生成一致性检查
+      if (assignedImages !== totalImages) {
+        warnings.push(`图片总数(${totalImages})与已分配图片数(${assignedImages})不匹配`)
+      }
+      
+      if (questionsWithImages === 0 && totalImages > 0) {
+        warnings.push('存在未分配的图片')
+      }
+      
+      // 更新一致性检查结果
+      this.consistencyCheck = {
+        consistent: warnings.length === 0,
+        warnings: warnings,
+        warningCount: warnings.length
+      }
+      
+      // 更新结果类型
+      if (this.consistencyCheck.consistent) {
+        this.resultType = 'success'
+      } else {
+        this.resultType = 'warning'
+      }
     }
   }
 }
@@ -725,6 +998,183 @@ export default {
   
   .dialog-footer {
     text-align: right;
+  }
+  
+  // 手动校正样式
+  .correction-container {
+    .correction-content {
+      display: flex;
+      gap: 20px;
+      height: 500px;
+      
+      .questions-section, .images-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        
+        h4 {
+          color: #303133;
+          margin-bottom: 15px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #EBEEF5;
+          
+          i {
+            margin-right: 8px;
+            color: #409EFF;
+          }
+        }
+      }
+      
+      .question-correction-list {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid #EBEEF5;
+        border-radius: 6px;
+        
+        .question-correction-item {
+          padding: 15px;
+          border-bottom: 1px solid #F5F7FA;
+          cursor: pointer;
+          transition: all 0.3s;
+          
+          &:hover {
+            background-color: #F5F7FA;
+          }
+          
+          &.active {
+            background-color: #E3F2FD;
+            border-left: 4px solid #409EFF;
+          }
+          
+          &:last-child {
+            border-bottom: none;
+          }
+          
+          .question-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            
+            .question-number {
+              font-weight: bold;
+              color: #409EFF;
+              margin-right: 10px;
+              min-width: 25px;
+            }
+            
+            .question-type {
+              background: #409EFF;
+              color: white;
+              padding: 2px 8px;
+              border-radius: 12px;
+              font-size: 12px;
+            }
+          }
+          
+          .question-text {
+            color: #303133;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+          }
+          
+          .assigned-images {
+            .image-preview {
+              display: flex;
+              gap: 8px;
+              flex-wrap: wrap;
+              
+              .assigned-image-thumb {
+                width: 60px;
+                height: 45px;
+                object-fit: cover;
+                border-radius: 4px;
+                border: 2px solid #67C23A;
+                cursor: pointer;
+                transition: all 0.2s;
+                
+                &:hover {
+                  transform: scale(1.1);
+                  border-color: #F56C6C;
+                }
+              }
+            }
+            
+            .no-images {
+              color: #C0C4CC;
+              font-style: italic;
+              font-size: 12px;
+            }
+          }
+        }
+      }
+      
+      .image-pool {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        padding: 10px;
+        border: 1px solid #EBEEF5;
+        border-radius: 6px;
+        background-color: #FAFAFA;
+        
+        .correction-image-item {
+          width: 120px;
+          background: white;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          cursor: pointer;
+          transition: all 0.3s;
+          
+          &:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          }
+          
+          &.assigned {
+            opacity: 0.6;
+            border: 2px solid #67C23A;
+            
+            .correction-image {
+              filter: grayscale(0.3);
+            }
+          }
+          
+          .correction-image {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            display: block;
+          }
+          
+          .image-info {
+            padding: 8px;
+            background: #F5F7FA;
+            font-size: 11px;
+            color: #909399;
+            text-align: center;
+            
+            .image-type {
+              display: block;
+              font-weight: 500;
+              margin-bottom: 2px;
+            }
+            
+            .page-info {
+              color: #67C23A;
+            }
+          }
+        }
+      }
+    }
   }
 }
 </style>

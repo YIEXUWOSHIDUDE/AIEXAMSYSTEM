@@ -18950,3 +18950,26 @@ Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7
 2025-08-07 14:42:55.301 DEBUG 33988 --- [QuartzScheduler_examScheduler-Joe1754548191383_MisfireHandler] o.s.s.quartz.LocalDataSourceJobStore     : Found 0 triggers that missed their scheduled fire-time.
 2025-08-07 14:42:56.062 DEBUG 33988 --- [QuartzScheduler_examScheduler-Joe1754548191383_ClusterManager] o.s.s.quartz.LocalDataSourceJobStore     : ClusterManager: Check-in complete.
 2025-08-07 14:42:56.578 DEBUG 33988 --- [examScheduler_QuartzSchedulerThread] org.quartz.core.QuartzSchedulerThread    : batch acquisition of 0 triggers
+2025-08-07 14:43:06.058 DEBUG 33988 --- [QuartzScheduler_examScheduler-Joe1754548191383_ClusterManager] o.s.s.quartz.LocalDataSourceJobStore     : ClusterManager: Check-in complete.
+2025-08-07 14:43:16.061 DEBUG 33988 --- [QuartzScheduler_examScheduler-Joe1754548191383_ClusterManager] o.s.s.quartz.LocalDataSourceJobStore     : ClusterManager: Check-in complete.
+2025-08-07 14:43:22.016 DEBUG 33988 --- [examScheduler_QuartzSchedulerThread] org.quartz.core.QuartzSchedulerThread    : batch acquisition of 0 triggers
+2025-08-07 14:43:24.448 DEBUG 33988 --- [Thread-6] ConfigServletWebServerApplicationContext : Closing org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext@50c13699, started on Thu Aug 07 14:29:44 GMT+08:00 2025
+2025-08-07 14:43:24.452 DEBUG 33988 --- [Thread-6] o.s.c.support.DefaultLifecycleProcessor  : Stopping beans in phase 2147483647
+2025-08-07 14:43:24.453 DEBUG 33988 --- [Thread-6] o.s.c.support.DefaultLifecycleProcessor  : Bean 'documentationPluginsBootstrapper' completed its stop procedure
+2025-08-07 14:43:24.453  INFO 33988 --- [Thread-6] org.quartz.core.QuartzScheduler          : Scheduler examScheduler_$_Joe1754548191383 paused.
+2025-08-07 14:43:24.454 DEBUG 33988 --- [Thread-6] o.s.c.support.DefaultLifecycleProcessor  : Bean 'quartzScheduler' completed its stop procedure
+2025-08-07 14:43:24.454 DEBUG 33988 --- [Thread-6] o.s.j.e.a.AnnotationMBeanExporter        : Unregistering JMX-exposed beans on shutdown
+2025-08-07 14:43:24.455 DEBUG 33988 --- [Thread-6] o.s.j.e.a.AnnotationMBeanExporter        : Unregistering JMX-exposed beans
+2025-08-07 14:43:24.456  INFO 33988 --- [Thread-6] o.s.s.concurrent.ThreadPoolTaskExecutor  : Shutting down ExecutorService 'asyncExecutor'
+2025-08-07 14:43:24.456  INFO 33988 --- [Thread-6] o.s.s.c.ThreadPoolTaskScheduler          : Shutting down ExecutorService 'taskScheduler'
+2025-08-07 14:43:24.456  INFO 33988 --- [Thread-6] o.s.s.c.ThreadPoolTaskScheduler          : Shutting down ExecutorService 'taskScheduler'
+2025-08-07 14:43:24.458  INFO 33988 --- [Thread-6] o.s.s.quartz.SchedulerFactoryBean        : Shutting down Quartz Scheduler
+2025-08-07 14:43:24.458  INFO 33988 --- [Thread-6] org.quartz.core.QuartzScheduler          : Scheduler examScheduler_$_Joe1754548191383 shutting down.
+2025-08-07 14:43:24.458  INFO 33988 --- [Thread-6] org.quartz.core.QuartzScheduler          : Scheduler examScheduler_$_Joe1754548191383 paused.
+2025-08-07 14:43:24.458 DEBUG 33988 --- [Thread-6] org.quartz.simpl.SimpleThreadPool        : Shutting down threadpool...
+2025-08-07 14:43:24.459 DEBUG 33988 --- [Thread-6] org.quartz.simpl.SimpleThreadPool        : Shutdown of threadpool complete.
+2025-08-07 14:43:24.459 DEBUG 33988 --- [Thread-6] o.s.s.quartz.LocalDataSourceJobStore     : JobStore background threads shutdown.
+2025-08-07 14:43:24.459  INFO 33988 --- [Thread-6] org.quartz.core.QuartzScheduler          : Scheduler examScheduler_$_Joe1754548191383 shutdown complete.
+2025-08-07 14:43:24.459  INFO 33988 --- [Thread-6] com.alibaba.druid.pool.DruidDataSource   : {dataSource-1} closing ...
+2025-08-07 14:43:24.465  INFO 33988 --- [Thread-6] com.alibaba.druid.pool.DruidDataSource   : {dataSource-1} closed
+2025-08-07 14:43:24.467 DEBUG 33988 --- [Thread-6] o.a.s.spring.LifecycleBeanPostProcessor  : Destroying bean [securityManager]...

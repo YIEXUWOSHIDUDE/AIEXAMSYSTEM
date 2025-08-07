@@ -215,8 +215,6 @@ import AIUpload from '@/components/AIUpload'
 import { batchAction } from '@/api/qu/repo'
 import { exportExcel, importExcel, importTemplate } from '@/api/qu/qu'
 
-console.log('AIUpload组件:', AIUpload)
-
 export default {
   name: 'QuList',
   components: { 

@@ -62,14 +62,31 @@
 
         <el-card class="qu-content content-h">
           <p v-if="quData.content">{{ quData.sort + 1 }}.{{ quData.content }}</p>
-          <p v-if="quData.image!=null && quData.image!=''">
-            <el-image :src="quData.image" style="max-width:100%;" />
-          </p>
+          
+          <!-- 多图片支持 -->
+          <div v-if="getQuestionImages(quData).length > 0" class="question-images">
+            <el-image 
+              v-for="(imageUrl, index) in getQuestionImages(quData)" 
+              :key="'qu-img-' + index"
+              :src="imageUrl" 
+              style="max-width:100%; margin-right: 10px; margin-bottom: 10px;" 
+              fit="contain"
+              :preview-src-list="getQuestionImages(quData)"
+              :initial-index="index" />
+          </div>
           <div v-if="quData.quType === 1 || quData.quType===3">
             <el-radio-group v-model="radioValue">
               <el-radio v-for="item in quData.answerList" :label="item.id">{{ item.abc }}.{{ item.content }}
-                <div v-if="item.image!=null && item.image!=''" style="clear: both">
-                  <el-image :src="item.image" style="max-width:100%;" />
+                <!-- 支持多图片显示 -->
+                <div v-if="getAnswerImages(item).length > 0" class="answer-images" style="clear: both">
+                  <el-image 
+                    v-for="(imageUrl, imgIndex) in getAnswerImages(item)" 
+                    :key="'radio-img-' + item.id + '-' + imgIndex"
+                    :src="imageUrl" 
+                    style="max-width:100%; margin-right: 8px; margin-bottom: 5px;" 
+                    fit="contain"
+                    :preview-src-list="getAnswerImages(item)"
+                    :initial-index="imgIndex" />
                 </div>
               </el-radio>
             </el-radio-group>
@@ -79,8 +96,16 @@
 
             <el-checkbox-group v-model="multiValue">
               <el-checkbox v-for="item in quData.answerList" :key="item.id" :label="item.id">{{ item.abc }}.{{ item.content }}
-                <div v-if="item.image!=null && item.image!=''" style="clear: both">
-                  <el-image :src="item.image" style="max-width:100%;" />
+                <!-- 支持多图片显示 -->
+                <div v-if="getAnswerImages(item).length > 0" class="answer-images" style="clear: both">
+                  <el-image 
+                    v-for="(imageUrl, imgIndex) in getAnswerImages(item)" 
+                    :key="'check-img-' + item.id + '-' + imgIndex"
+                    :src="imageUrl" 
+                    style="max-width:100%; margin-right: 8px; margin-bottom: 5px;" 
+                    fit="contain"
+                    :preview-src-list="getAnswerImages(item)"
+                    :initial-index="imgIndex" />
                 </div>
               </el-checkbox>
             </el-checkbox-group>
@@ -170,6 +195,56 @@ export default {
   },
 
   methods: {
+
+    // 获取题目图片列表
+    getQuestionImages(quData) {
+      const images = []
+      
+      // 优先使用 imageList 数组
+      if (quData.imageList && Array.isArray(quData.imageList)) {
+        images.push(...quData.imageList.filter(url => url && url.trim()))
+      } else if (quData.imageRefs) {
+        // 如果有 imageRefs JSON 字符串，解析它
+        try {
+          const refs = JSON.parse(quData.imageRefs)
+          if (Array.isArray(refs)) {
+            images.push(...refs.filter(url => url && url.trim()))
+          }
+        } catch (e) {
+          console.warn('解析 imageRefs 失败:', e)
+        }
+      } else if (quData.image && quData.image.trim()) {
+        // 传统单图片模式
+        images.push(quData.image)
+      }
+      
+      return images
+    },
+    
+    // 获取答案图片列表
+    getAnswerImages(answerItem) {
+      const images = []
+      
+      // 优先使用 imageList 数组
+      if (answerItem.imageList && Array.isArray(answerItem.imageList)) {
+        images.push(...answerItem.imageList.filter(url => url && url.trim()))
+      } else if (answerItem.imageRefs) {
+        // 如果有 imageRefs JSON 字符串，解析它
+        try {
+          const refs = JSON.parse(answerItem.imageRefs)
+          if (Array.isArray(refs)) {
+            images.push(...refs.filter(url => url && url.trim()))
+          }
+        } catch (e) {
+          console.warn('解析 imageRefs 失败:', e)
+        }
+      } else if (answerItem.image && answerItem.image.trim()) {
+        // 传统单图片模式
+        images.push(answerItem.image)
+      }
+      
+      return images
+    },
 
     // 答题卡样式
     cardItemClass(answered, quId) {
@@ -334,7 +409,6 @@ export default {
       // 查找下个详情
       const params = { paperId: this.paperId, quId: item.quId }
       quDetail(params).then(response => {
-        console.log(response)
         this.quData = response.data
         this.radioValue = ''
         this.multiValue = []
@@ -453,6 +527,38 @@ export default {
     max-width: 200px;
     max-height: 200px;
     border: #dcdfe6 1px dotted;
+  }
+  
+  /* 多图片支持样式 */
+  .question-images {
+    margin: 10px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .answer-images {
+    margin: 8px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .question-images .el-image,
+  .answer-images .el-image {
+    cursor: pointer;
+    border-radius: 4px;
+    transition: transform 0.2s;
+  }
+  
+  .question-images .el-image:hover,
+  .answer-images .el-image:hover {
+    transform: scale(1.05);
+  }
+  
+  /* 图片预览窗口样式 */
+  .el-image-viewer__wrapper {
+    background-color: rgba(0, 0, 0, 0.8);
   }
 
   ::v-deep
