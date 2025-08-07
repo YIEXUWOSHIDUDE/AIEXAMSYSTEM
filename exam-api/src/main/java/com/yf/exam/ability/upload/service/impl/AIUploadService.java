@@ -318,17 +318,30 @@ public class AIUploadService {
                 qu.setQuType(questionJson.getInteger("quType"));
                 qu.setLevel(questionJson.getInteger("level") != null ? questionJson.getInteger("level") : 1);
                 
-                // 结构化图片处理 - 直接从block_id和image_refs获取
+                // 结构化图片处理 - 从image_refs解析实际URL
                 String blockId = questionJson.getString("block_id");
-                String questionImageUrl = questionJson.getString("image");
+                String questionImageUrl = "";
                 
-                if (questionImageUrl != null && !questionImageUrl.trim().isEmpty()) {
-                    // 如果AI已经返回了完整URL，直接使用
-                    qu.setImage(convertImageUrl(questionImageUrl));
-                    logger.info("🖼️ 题目图片: {} → {}", blockId, questionImageUrl);
+                // 优先使用image_refs解析图片URL
+                JSONArray imageRefs = questionJson.getJSONArray("image_refs");
+                if (imageRefs != null && !imageRefs.isEmpty()) {
+                    String imageRef = imageRefs.getString(0); // 取第一个图片引用
+                    if (imageUrlMap.containsKey(imageRef)) {
+                        questionImageUrl = imageUrlMap.get(imageRef);
+                        logger.info("🖼️ 题目图片解析: {} ({}) → {}", blockId, imageRef, questionImageUrl);
+                    } else {
+                        logger.warn("⚠️ 未找到图片引用: {} (block: {})", imageRef, blockId);
+                    }
                 } else {
-                    qu.setImage("");
+                    // 降级：尝试直接从image字段获取
+                    String directImageUrl = questionJson.getString("image");
+                    if (directImageUrl != null && !directImageUrl.trim().isEmpty()) {
+                        questionImageUrl = directImageUrl;
+                        logger.info("🖼️ 题目图片直接: {} → {}", blockId, questionImageUrl);
+                    }
                 }
+                
+                qu.setImage(questionImageUrl);
                 
                 qu.setContent(questionJson.getString("content"));
                 qu.setCreateTime(new Date());
@@ -376,14 +389,29 @@ public class AIUploadService {
                             answer.setQuId(qu.getId());
                             answer.setIsRight(optionJson.getBoolean("isRight") != null ? optionJson.getBoolean("isRight") : false);
                             
-                            // 结构化选项图片处理
-                            String optionImageUrl = optionJson.getString("image");
-                            if (optionImageUrl != null && !optionImageUrl.trim().isEmpty()) {
-                                answer.setImage(convertImageUrl(optionImageUrl));
-                                logger.info("    🖼️ 选项图片: {}", optionImageUrl);
+                            // 结构化选项图片处理 - 从image_refs解析实际URL
+                            String optionImageUrl = "";
+                            
+                            // 优先使用image_refs解析选项图片URL
+                            JSONArray optionImageRefs = optionJson.getJSONArray("image_refs");
+                            if (optionImageRefs != null && !optionImageRefs.isEmpty()) {
+                                String imageRef = optionImageRefs.getString(0); // 取第一个图片引用
+                                if (imageUrlMap.containsKey(imageRef)) {
+                                    optionImageUrl = imageUrlMap.get(imageRef);
+                                    logger.info("    🖼️ 选项图片解析: {} → {}", imageRef, optionImageUrl);
+                                } else {
+                                    logger.warn("    ⚠️ 未找到选项图片引用: {}", imageRef);
+                                }
                             } else {
-                                answer.setImage("");
+                                // 降级：尝试直接从image字段获取
+                                String directImageUrl = optionJson.getString("image");
+                                if (directImageUrl != null && !directImageUrl.trim().isEmpty()) {
+                                    optionImageUrl = directImageUrl;
+                                    logger.info("    🖼️ 选项图片直接: {}", optionImageUrl);
+                                }
                             }
+                            
+                            answer.setImage(optionImageUrl);
                             
                             answer.setContent(optionJson.getString("content"));
                             answer.setAnalysis(optionJson.getString("analysis") != null ? optionJson.getString("analysis") : "");
@@ -442,27 +470,26 @@ public class AIUploadService {
                 String questionContent = questionJson.getString("content");
                 String imageMarker = extractImageMarkerFromContent(questionContent);
                 
-                System.out.println("  🔍 Question " + questionIndex + " content: " + (questionContent != null ? questionContent.substring(0, Math.min(100, questionContent.length())) + "..." : "null"));
-                System.out.println("  🏷️ Extracted marker: " + imageMarker);
+                logger.debug("🔍 题目 {} 内容: {}", questionIndex, 
+                    (questionContent != null ? questionContent.substring(0, Math.min(100, questionContent.length())) + "..." : "null"));
+                logger.debug("🏷️ 提取的标记: {}", imageMarker);
                 
                 if (imageMarker != null && extractedImages != null) {
                     // Direct match by image_id
                     String matchedUrl = findImageByReference(imageMarker, extractedImages);
                     imageUrl = matchedUrl != null ? matchedUrl : "";
                     if (matchedUrl != null) {
-                        System.out.println("  ✅ Direct match: " + imageMarker + " → " + matchedUrl.substring(matchedUrl.lastIndexOf('/') + 1));
+                        logger.info("✅ 直接匹配成功: {} → {}", imageMarker, matchedUrl.substring(matchedUrl.lastIndexOf('/') + 1));
                     } else {
-                        System.out.println("  ❌ No match found for: " + imageMarker);
+                        logger.warn("❌ 未找到匹配: {}", imageMarker);
                     }
                 } else {
                     imageUrl = "";
                     if (imageMarker == null) {
-                        System.out.println("  ⚪ No image marker found in question content");
+                        logger.debug("⚪ 题目内容中未发现图片标记");
                     }
                 }
                 
-                // 转换图片URL为浏览器兼容格式
-                imageUrl = convertImageUrl(imageUrl);
                 qu.setImage(imageUrl != null ? imageUrl : "");
                 
                 qu.setContent(questionJson.getString("content"));
@@ -491,17 +518,17 @@ public class AIUploadService {
                     qu.setGrade(grade);
                 }
                 
-                System.out.println("💾 Saving question with enhanced data:");
-                System.out.println("  📝 Content: " + qu.getContent().substring(0, Math.min(50, qu.getContent().length())) + "...");
-                System.out.println("  🔍 Stem: " + questionStem.substring(0, Math.min(50, questionStem.length())) + "...");
-                System.out.println("  🏷️ Knowledge: " + knowledgePoints);
-                System.out.println("  📊 Status: " + extractionStatus);
+                logger.info("💾 保存增强题目数据:");
+                logger.info("  📝 内容: {}...", qu.getContent().substring(0, Math.min(50, qu.getContent().length())));
+                logger.info("  🔍 题干: {}...", questionStem.substring(0, Math.min(50, questionStem.length())));
+                logger.info("  🏷️ 知识点: {}", knowledgePoints);
+                logger.info("  📊 提取状态: {}", extractionStatus);
                 
                 // 保存题目
                 boolean saved = quService.save(qu);
                 if (saved) {
                     savedCount++;
-                    System.out.println("  ✅ Question saved successfully with ID: " + qu.getId());
+                    logger.info("✅ 题目保存成功，ID: {}", qu.getId());
                     
                     // 保存答案选项
                     JSONArray options = questionJson.getJSONArray("options");
@@ -524,7 +551,7 @@ public class AIUploadService {
                                 String matchedUrl = findImageByReference(answerImageMarker, extractedImages);
                                 if (matchedUrl != null) {
                                     answerImageUrl = matchedUrl;
-                                    System.out.println("    ✅ Answer content marker: " + answerImageMarker);
+                                    logger.debug("✅ 答案内容标记: {}", answerImageMarker);
                                 }
                             }
                             
@@ -535,12 +562,12 @@ public class AIUploadService {
                                     String matchedUrl = findImageByReference(originalMarker, extractedImages);
                                     if (matchedUrl != null) {
                                         answerImageUrl = matchedUrl;
-                                        System.out.println("    ✅ Answer image field: " + originalMarker);
+                                        logger.debug("✅ 答案图片字段: {}", originalMarker);
                                     }
                                 }
                             }
                             
-                            answer.setImage(convertImageUrl(answerImageUrl) != null ? convertImageUrl(answerImageUrl) : "");
+                            answer.setImage(answerImageUrl != null ? answerImageUrl : "");
                             answer.setContent(optionJson.getString("content"));
                             answer.setAnalysis(optionJson.getString("analysis") != null ? optionJson.getString("analysis") : "");
                             
@@ -548,7 +575,7 @@ public class AIUploadService {
                         }
                     }
                 } else {
-                    System.err.println("  ❌ Failed to save question to database");
+                    logger.error("❌ 题目保存到数据库失败");
                 }
                 
                 questionIndex++; // Move to next question
@@ -723,7 +750,7 @@ public class AIUploadService {
             
             // Log image extraction results
             if (imageCount > 0) {
-                System.out.println("Successfully extracted " + imageCount + " images from the document");
+                logger.info("成功提取 {} 张图片", imageCount);
             }
             
             // 2. 调 LLM 拆题 (pass extracted images info to AI)
@@ -807,7 +834,7 @@ public class AIUploadService {
             String imageId = imageInfo.getString("image_id");
             
             if (imageId != null && imageId.equals(cleanMarker)) {
-                System.out.println("  🎯 Found perfect match for image marker: " + cleanMarker);
+                logger.debug("🎯 找到完美匹配的图片标记: {}", cleanMarker);
                 return imageInfo.getString("image_url");
             }
         }
@@ -823,7 +850,7 @@ public class AIUploadService {
                     JSONObject imageInfo = (JSONObject) imgObj;
                     String imageId = imageInfo.getString("image_id");
                     if (imageId != null && imageId.equals(String.format("IMG_%03d", imageNum))) {
-                        System.out.println("  🎯 Found numbered match for: IMG_" + String.format("%03d", imageNum));
+                        logger.debug("🎯 找到编号匹配: IMG_{}", String.format("%03d", imageNum));
                         return imageInfo.getString("image_url");
                     }
                 }
@@ -851,23 +878,11 @@ public class AIUploadService {
         
         if (matcher.find()) {
             String marker = matcher.group();
-            System.out.println("  📝 Extracted image marker from content: " + marker);
+            logger.debug("📝 从内容中提取的图片标记: {}", marker);
             return marker;
         }
         
         return null;
     }
 
-    /**
-     * 转换图片URL为浏览器兼容格式
-     * WMF格式无法在浏览器中显示，需要转换
-     */
-    private String convertImageUrl(String imageUrl) {
-        if (imageUrl == null || imageUrl.trim().isEmpty()) {
-            return null;
-        }
-
-        // WMF转换已在Python服务中处理，这里收到的应该是PNG URL
-        return imageUrl;
-    }
 }
