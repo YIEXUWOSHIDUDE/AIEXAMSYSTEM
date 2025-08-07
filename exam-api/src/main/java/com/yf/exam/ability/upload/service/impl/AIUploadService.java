@@ -48,14 +48,22 @@ public class AIUploadService {
 
 
     /**
-     * 1. 先抽图片和文本（Python微服务）
+     * 1. 先抽图片和文本（Python微服务） - 支持结构化和兼容格式
      */
     public String extractTextFromFile(MultipartFile file) {
+        return extractTextFromFile(file, true); // 默认使用兼容格式
+    }
+    
+    /**
+     * 1. 先抽图片和文本（Python微服务） - 支持选择输出格式
+     */
+    public String extractTextFromFile(MultipartFile file, boolean legacyFormat) {
         try {
             String pythonUrl = "http://localhost:8003/api/extract_questions_with_images";
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             Resource fileResource = new MultipartInputStreamFileResource(file.getInputStream(), file.getOriginalFilename());
             body.add("file", fileResource);
+            body.add("legacy_format", legacyFormat); // 传递格式参数
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -66,7 +74,7 @@ public class AIUploadService {
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new RuntimeException("抽取图片/文本失败: " + response.getBody());
             }
-            // 这里你可以直接返回 body，或者只返回 text 部分（比如JSONObject.parseObject().getString("textContent")）
+            
             return response.getBody();
         } catch (Exception e) {
             throw new RuntimeException("文件解析异常: " + e.getMessage(), e);
@@ -93,6 +101,113 @@ public class AIUploadService {
     public JSONArray callAiExtractQuestions(String textContent, String subject, String grade, JSONArray extractedImages) {
         // Direct extraction - no need for complex enhanced/original fallback
         return callOriginalExtraction(textContent, subject, grade, extractedImages);
+    }
+    
+    /**
+     * 2. 调用大模型，拆题 - 结构化提取版本
+     * 处理DoclingDocument格式的输入
+     */
+    public JSONArray callAiExtractQuestionsStructured(String doclingDocumentJson, String subject, String grade) {
+        try {
+            logger.info("🏗️ 开始结构化题目提取");
+            
+            // 构建结构化提取提示词
+            String prompt = PromptConfig.STRUCTURED_EXTRACTION_PROMPT + "\n\n文档内容：\n" + doclingDocumentJson;
+            
+            // 如果有学科年级约束，添加到提示词中
+            if (subject != null && grade != null) {
+                prompt += "\n\n【学科年级约束】：\n" +
+                         "学科：" + subject + "\n" +
+                         "年级：" + grade + "\n" +
+                         "只提取与指定学科年级相关的题目，其他题目请忽略。";
+            }
+            
+            // 🔍 DIAGNOSTIC: 记录发送给AI的内容
+            logger.info("🔍 AI输入诊断:");
+            logger.info("  📝 提示词长度: {}", prompt.length());
+            logger.info("  📄 输入内容前500字符: {}", prompt.length() > 500 ? prompt.substring(0, 500) + "..." : prompt);
+            
+            // 检查输入中的图片标记
+            java.util.regex.Pattern inputMarkerPattern = java.util.regex.Pattern.compile("\\{\\{[A-Z_0-9]+\\}\\}");
+            java.util.regex.Matcher inputMatcher = inputMarkerPattern.matcher(prompt);
+            int inputMarkerCount = 0;
+            StringBuilder inputMarkers = new StringBuilder();
+            while (inputMatcher.find()) {
+                inputMarkerCount++;
+                if (inputMarkers.length() > 0) inputMarkers.append(", ");
+                inputMarkers.append(inputMatcher.group());
+            }
+            logger.info("  🏷️ 输入中发现的图片标记数量: {}", inputMarkerCount);
+            if (inputMarkerCount > 0) {
+                logger.info("  📋 输入标记列表: {}", inputMarkers.toString());
+            }
+            
+            // 调用AI服务 - 直接使用智能提取接口
+            String response = aiProcessingService.extractQuestionsIntelligent(prompt);
+            
+            if (response == null) {
+                throw new RuntimeException("结构化AI提取失败: AI服务返回空结果");
+            }
+            
+            // 🔍 DIAGNOSTIC: 记录AI返回的内容
+            logger.info("🔍 AI输出诊断:");
+            logger.info("  📝 响应长度: {}", response.length());
+            logger.info("  📄 响应前500字符: {}", response.length() > 500 ? response.substring(0, 500) + "..." : response);
+            
+            // 检查响应中的图片标记保留情况
+            java.util.regex.Matcher outputMatcher = inputMarkerPattern.matcher(response);
+            int outputMarkerCount = 0;
+            StringBuilder outputMarkers = new StringBuilder();
+            while (outputMatcher.find()) {
+                outputMarkerCount++;
+                if (outputMarkers.length() > 0) outputMarkers.append(", ");
+                outputMarkers.append(outputMatcher.group());
+            }
+            logger.info("  🏷️ 响应中保留的图片标记数量: {}", outputMarkerCount);
+            if (outputMarkerCount > 0) {
+                logger.info("  📋 响应标记列表: {}", outputMarkers.toString());
+            }
+            
+            // 标记保留率分析
+            if (inputMarkerCount > 0) {
+                double preservationRate = (double) outputMarkerCount / inputMarkerCount * 100;
+                logger.info("  📊 标记保留率: {:.1f}% ({}/{})", preservationRate, outputMarkerCount, inputMarkerCount);
+                
+                if (preservationRate < 100) {
+                    logger.warn("⚠️ 警告: AI未完全保留图片标记! 丢失了{}个标记", inputMarkerCount - outputMarkerCount);
+                }
+            }
+            
+            // 解析响应
+            JSONArray questions = parseAIResponse(response);
+            logger.info("✅ 结构化提取成功，获得{}道题目", questions.size());
+            
+            // 🔍 DIAGNOSTIC: 分析每个题目中的图片信息
+            logger.info("🔍 题目图片分析:");
+            for (int i = 0; i < questions.size(); i++) {
+                JSONObject question = questions.getJSONObject(i);
+                String content = question.getString("content");
+                String imageUrl = question.getString("image");
+                String blockId = question.getString("block_id");
+                
+                // 检查题目内容中的图片标记
+                java.util.regex.Matcher questionMatcher = inputMarkerPattern.matcher(content != null ? content : "");
+                int questionMarkerCount = 0;
+                while (questionMatcher.find()) {
+                    questionMarkerCount++;
+                }
+                
+                logger.info("  题目{}: Block={}, 内容标记数={}, 图片URL={}", 
+                    i + 1, blockId, questionMarkerCount, 
+                    (imageUrl != null && !imageUrl.trim().isEmpty()) ? "有图片" : "无图片");
+            }
+            
+            return questions;
+            
+        } catch (Exception e) {
+            logger.error("❌ 结构化题目提取异常", e);
+            throw new RuntimeException("结构化拆题异常: " + e.getMessage(), e);
+        }
     }
 
 
@@ -173,6 +288,137 @@ public class AIUploadService {
         return saveQuestionsWithImages(questions, extractedImages, null, null);
     }
     
+    /**
+     * 3. 存数据库（带图片信息和学科年级） - 结构化版本
+     */
+    public ApiRest<?> saveQuestionsWithImagesStructured(JSONArray questions, JSONObject doclingDocument, String subject, String grade) {
+        try {
+            logger.info("💾 开始结构化保存，题目数：{}", questions.size());
+            
+            // 从DoclingDocument中提取图片映射
+            JSONObject imagesDict = doclingDocument.getJSONObject("images");
+            Map<String, String> imageUrlMap = new HashMap<>();
+            
+            if (imagesDict != null) {
+                for (String imageId : imagesDict.keySet()) {
+                    JSONObject imageInfo = imagesDict.getJSONObject(imageId);
+                    String imageUrl = imageInfo.getString("url");
+                    imageUrlMap.put(imageId, imageUrl);
+                    logger.debug("🖼️ 图片映射: {} → {}", imageId, imageUrl);
+                }
+            }
+            
+            int savedCount = 0;
+            
+            for (Object questionObj : questions) {
+                JSONObject questionJson = (JSONObject) questionObj;
+                
+                // 创建题目实体
+                Qu qu = new Qu();
+                qu.setQuType(questionJson.getInteger("quType"));
+                qu.setLevel(questionJson.getInteger("level") != null ? questionJson.getInteger("level") : 1);
+                
+                // 结构化图片处理 - 直接从block_id和image_refs获取
+                String blockId = questionJson.getString("block_id");
+                String questionImageUrl = questionJson.getString("image");
+                
+                if (questionImageUrl != null && !questionImageUrl.trim().isEmpty()) {
+                    // 如果AI已经返回了完整URL，直接使用
+                    qu.setImage(convertImageUrl(questionImageUrl));
+                    logger.info("🖼️ 题目图片: {} → {}", blockId, questionImageUrl);
+                } else {
+                    qu.setImage("");
+                }
+                
+                qu.setContent(questionJson.getString("content"));
+                qu.setCreateTime(new Date());
+                qu.setUpdateTime(new Date());
+                qu.setRemark(questionJson.getString("remark") != null ? questionJson.getString("remark") : "");
+                qu.setAnalysis(questionJson.getString("analysis") != null ? questionJson.getString("analysis") : "");
+                
+                // 设置增强字段
+                String questionStem = questionJson.getString("questionStem") != null ? 
+                    questionJson.getString("questionStem") : questionJson.getString("content");
+                String knowledgePoints = questionJson.getString("knowledgePoints") != null ? 
+                    questionJson.getString("knowledgePoints") : "[]";
+                Integer extractionStatus = questionJson.getInteger("extractionStatus") != null ? 
+                    questionJson.getInteger("extractionStatus") : 1; // 结构化提取默认为已处理
+                
+                qu.setQuestionStem(questionStem);
+                qu.setKnowledgePoints(knowledgePoints);
+                qu.setExtractionStatus(extractionStatus);
+                
+                // 设置学科年级
+                if (subject != null && !subject.trim().isEmpty()) {
+                    qu.setSubject(subject);
+                }
+                if (grade != null && !grade.trim().isEmpty()) {
+                    qu.setGrade(grade);
+                }
+                
+                logger.info("💾 保存结构化题目:");
+                logger.info("  📋 Block ID: {}", blockId);
+                logger.info("  📝 Content: {}", qu.getContent().substring(0, Math.min(50, qu.getContent().length())) + "...");
+                
+                // 保存题目
+                boolean saved = quService.save(qu);
+                if (saved) {
+                    savedCount++;
+                    logger.info("  ✅ 题目保存成功，ID: {}", qu.getId());
+                    
+                    // 保存答案选项
+                    JSONArray options = questionJson.getJSONArray("options");
+                    if (options != null && !options.isEmpty()) {
+                        for (Object optionObj : options) {
+                            JSONObject optionJson = (JSONObject) optionObj;
+                            
+                            QuAnswer answer = new QuAnswer();
+                            answer.setQuId(qu.getId());
+                            answer.setIsRight(optionJson.getBoolean("isRight") != null ? optionJson.getBoolean("isRight") : false);
+                            
+                            // 结构化选项图片处理
+                            String optionImageUrl = optionJson.getString("image");
+                            if (optionImageUrl != null && !optionImageUrl.trim().isEmpty()) {
+                                answer.setImage(convertImageUrl(optionImageUrl));
+                                logger.info("    🖼️ 选项图片: {}", optionImageUrl);
+                            } else {
+                                answer.setImage("");
+                            }
+                            
+                            answer.setContent(optionJson.getString("content"));
+                            answer.setAnalysis(optionJson.getString("analysis") != null ? optionJson.getString("analysis") : "");
+                            
+                            quAnswerService.save(answer);
+                        }
+                    }
+                } else {
+                    logger.error("  ❌ 题目保存失败");
+                }
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("savedCount", savedCount);
+            result.put("totalCount", questions.size());
+            result.put("imageCount", imageUrlMap.size());
+            result.put("extractionMethod", "structured");
+            
+            ApiRest<Map<String, Object>> apiRest = new ApiRest<>();
+            apiRest.setCode(0);
+            String message = "结构化导入成功: " + savedCount + " 道题目";
+            if (imageUrlMap.size() > 0) {
+                message += "，" + imageUrlMap.size() + " 张图片";
+            }
+            apiRest.setMsg(message);
+            apiRest.setData(result);
+            
+            return apiRest;
+            
+        } catch (Exception e) {
+            logger.error("❌ 结构化保存失败", e);
+            throw new RuntimeException("结构化保存题目失败: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * 3. 存数据库（带图片信息和学科年级）
      */
@@ -340,13 +586,116 @@ public class AIUploadService {
     }
     
     /**
+     * 4. 全流程入口（结构化版本）- 使用DoclingDocument格式
+     */
+    public ApiRest<?> handleUploadAndSplitStructured(MultipartFile file, String subject, String grade) {
+        try {
+            logger.info("🏗️ 开始结构化文档处理流程");
+            
+            // 1. 获取结构化文档
+            String doclingJsonStr = extractTextFromFile(file, false); // 使用结构化格式
+            JSONObject doclingDocument = JSONObject.parseObject(doclingJsonStr);
+            
+            // 检查Python服务错误
+            if (doclingDocument.containsKey("error")) {
+                ApiRest<Object> apiRest = new ApiRest<>();
+                apiRest.setCode(1);
+                apiRest.setMsg("结构化文档解析失败: " + doclingDocument.getString("error"));
+                apiRest.setData(null);
+                return apiRest;
+            }
+            
+            logger.info("📋 结构化文档信息:");
+            logger.info("  📝 内容块数: {}", doclingDocument.getJSONArray("content_blocks").size());
+            logger.info("  🖼️ 图片数量: {}", doclingDocument.getJSONObject("images").size());
+            
+            // 2. 使用结构化AI提取题目
+            JSONArray questions = callAiExtractQuestionsStructured(doclingJsonStr, subject, grade);
+            
+            // 3. 结构化保存到数据库
+            return saveQuestionsWithImagesStructured(questions, doclingDocument, subject, grade);
+            
+        } catch (Exception e) {
+            logger.error("❌ 结构化流程异常", e);
+            ApiRest<Object> apiRest = new ApiRest<>();
+            apiRest.setCode(1);
+            apiRest.setMsg("结构化处理失败: " + e.getMessage());
+            apiRest.setData(null);
+            return apiRest;
+        }
+    }
+
+    /**
      * 4. 全流程入口（带学科年级约束）
      */
     public ApiRest<?> handleUploadAndSplit(MultipartFile file, String subject, String grade) {
         try {
+            logger.info("🔍 开始完整流程诊断 - 文件: {}", file.getOriginalFilename());
+            
             // 1. 先抽文件内容
             String extractJsonStr = extractTextFromFile(file);
             JSONObject extractBody = JSONObject.parseObject(extractJsonStr);
+            
+            // 🔍 DIAGNOSTIC: 检查Python返回的内容
+            logger.info("🔍 Python提取结果诊断:");
+            logger.info("  📝 响应长度: {}", extractJsonStr.length());
+            
+            if (extractBody.containsKey("textContent")) {
+                String textContent = extractBody.getString("textContent");
+                logger.info("  📄 文本内容长度: {}", textContent.length());
+                
+                // 检查Python返回文本中的图片标记
+                java.util.regex.Pattern pythonMarkerPattern = java.util.regex.Pattern.compile("\\{\\{[A-Z_0-9]+\\}\\}");
+                java.util.regex.Matcher pythonMatcher = pythonMarkerPattern.matcher(textContent);
+                int pythonMarkerCount = 0;
+                StringBuilder pythonMarkers = new StringBuilder();
+                while (pythonMatcher.find()) {
+                    pythonMarkerCount++;
+                    if (pythonMarkers.length() > 0) pythonMarkers.append(", ");
+                    pythonMarkers.append(pythonMatcher.group());
+                }
+                logger.info("  🏷️ Python返回文本中的图片标记数量: {}", pythonMarkerCount);
+                if (pythonMarkerCount > 0) {
+                    logger.info("  📋 Python标记列表: {}", pythonMarkers.toString());
+                }
+                
+                // 显示文本中的标记位置
+                if (pythonMarkerCount > 0) {
+                    logger.info("  📍 标记位置示例:");
+                    java.util.regex.Matcher positionMatcher = pythonMarkerPattern.matcher(textContent);
+                    int count = 0;
+                    while (positionMatcher.find() && count < 3) { // 只显示前3个
+                        int start = Math.max(0, positionMatcher.start() - 30);
+                        int end = Math.min(textContent.length(), positionMatcher.end() + 30);
+                        String context = textContent.substring(start, end).replaceAll("\n", "\\\\n");
+                        logger.info("    {}: ...{}...", positionMatcher.group(), context);
+                        count++;
+                    }
+                } else {
+                    logger.warn("⚠️ 警告: Python返回的文本中未发现图片标记!");
+                    logger.info("  📄 文本前300字符: {}", textContent.substring(0, Math.min(300, textContent.length())));
+                }
+            }
+            
+            if (extractBody.containsKey("images")) {
+                JSONArray images = extractBody.getJSONArray("images");
+                logger.info("  🖼️ Python返回图片数量: {}", images != null ? images.size() : 0);
+                if (images != null && images.size() > 0) {
+                    for (int i = 0; i < Math.min(3, images.size()); i++) { // 显示前3个图片
+                        JSONObject img = images.getJSONObject(i);
+                        logger.info("    图片{}: ID={}, URL={}", i+1, img.getString("image_id"), img.getString("image_url"));
+                    }
+                }
+            }
+            
+            if (extractBody.containsKey("structure_info")) {
+                JSONObject structureInfo = extractBody.getJSONObject("structure_info");
+                logger.info("  📊 结构化信息: 总块数={}, 题目块数={}, 选项块数={}, 关联数={}", 
+                    structureInfo.getInteger("total_blocks"),
+                    structureInfo.getInteger("question_blocks"), 
+                    structureInfo.getInteger("option_blocks"),
+                    structureInfo.getInteger("relationships"));
+            }
             
             // Check for Python service errors
             if (extractBody.containsKey("error")) {
@@ -450,8 +799,8 @@ public class AIUploadService {
             return imageMarker;
         }
         
-        // 查找图片标记，例如 [IMAGE_1], IMAGE_2 等
-        String cleanMarker = imageMarker.replaceAll("[\\[\\]]", "").trim(); // 移除方括号
+        // 查找图片标记，例如 {{IMG_001}} 等
+        String cleanMarker = imageMarker.replaceAll("[\\{\\}]", "").trim(); // 移除花括号
         
         for (Object imgObj : extractedImages) {
             JSONObject imageInfo = (JSONObject) imgObj;
@@ -464,17 +813,17 @@ public class AIUploadService {
         }
         
         // 如果没有找到精确匹配，尝试模糊匹配
-        if (cleanMarker.startsWith("IMAGE_")) {
+        if (cleanMarker.startsWith("IMG_")) {
             try {
-                String numberPart = cleanMarker.replace("IMAGE_", "");
+                String numberPart = cleanMarker.replace("IMG_", "");
                 int imageNum = Integer.parseInt(numberPart);
                 
-                // 尝试直接按编号匹配
+                // 尝试直接按编号匹配 (IMG_001 format)
                 for (Object imgObj : extractedImages) {
                     JSONObject imageInfo = (JSONObject) imgObj;
                     String imageId = imageInfo.getString("image_id");
-                    if (imageId != null && imageId.equals("IMAGE_" + imageNum)) {
-                        System.out.println("  🎯 Found numbered match for: IMAGE_" + imageNum);
+                    if (imageId != null && imageId.equals(String.format("IMG_%03d", imageNum))) {
+                        System.out.println("  🎯 Found numbered match for: IMG_" + String.format("%03d", imageNum));
                         return imageInfo.getString("image_url");
                     }
                 }
@@ -489,15 +838,15 @@ public class AIUploadService {
 
     /**
      * 从题目内容中提取图片标记
-     * 例如：从 "如图所示 [IMAGE_1] 求解..." 中提取 "IMAGE_1"
+     * 例如：从 "如图所示 {{IMG_001}} 求解..." 中提取 "IMG_001"
      */
     private String extractImageMarkerFromContent(String content) {
         if (content == null || content.trim().isEmpty()) {
             return null;
         }
         
-        // 使用正则表达式查找图片标记
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\[IMAGE_\\d+\\]");
+        // 使用正则表达式查找新格式的图片标记
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\{\\{IMG_\\d{3}\\}\\}");
         java.util.regex.Matcher matcher = pattern.matcher(content);
         
         if (matcher.find()) {
