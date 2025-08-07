@@ -30,7 +30,7 @@
 - **Frontend**: Vue.js + Element UI
 - **AI Engine**: Qwen3-32B (千问大模型)
 - **Document Processing**: Python + FastAPI
-- **Architecture**: KISS原则 (Keep It Simple And Stupid)
+
 
 ### **系统架构**
 ```
@@ -175,7 +175,7 @@ python app.py
 
 ### **原版系统支持**
 - **官网**: https://www.jeedocm.com/?plan=githuby
-- **QQ群**: 757328773
+
 
 ### **AI版本支持**
 - **项目仓库**: [本项目GitHub地址]
