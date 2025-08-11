@@ -31,6 +31,7 @@ com\yf\exam\modules\paper\dto\response\ExamDetailRespDTO.class
 com\yf\exam\modules\qu\service\KnowledgePointService.class
 com\yf\exam\modules\exam\dto\ExamDepartDTO.class
 com\yf\exam\modules\paper\dto\PaperQuAnswerDTO.class
+com\yf\exam\ability\upload\service\impl\AIUploadService$ConsistencyCheckResult.class
 com\yf\exam\modules\user\exam\dto\UserExamDTO.class
 com\yf\exam\ability\upload\service\UploadService.class
 com\yf\exam\core\utils\BeanMapper.class

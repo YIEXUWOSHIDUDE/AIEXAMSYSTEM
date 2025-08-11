@@ -83,20 +83,15 @@ public class AIUploadService {
     }
     
     /**
-     * 1. 先抽图片和文本（Python微服务） - 支持选择输出格式和分配策略
+     * 1. 先抽图片和文本（Python微服务） - 支持选择输出格式
      */
     public String extractTextFromFile(MultipartFile file, boolean legacyFormat) {
-        return extractTextFromFile(file, legacyFormat, "smart");
-    }
-    
-    public String extractTextFromFile(MultipartFile file, boolean legacyFormat, String assignmentStrategy) {
         try {
             String pythonUrl = "http://localhost:8003/api/extract_questions_with_images";
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             Resource fileResource = new MultipartInputStreamFileResource(file.getInputStream(), file.getOriginalFilename());
             body.add("file", fileResource);
             body.add("legacy_format", legacyFormat); // 传递格式参数
-            body.add("assignment_strategy", assignmentStrategy); // 传递分配策略
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -258,8 +253,9 @@ public class AIUploadService {
             JSONArray contentBlocks = doclingDocument.getJSONArray("content_blocks");
             int totalBlocks = contentBlocks != null ? contentBlocks.size() : 0;
             
-            // 检查题目数量与图片数量
-            int questionsWithImages = 0;
+            // 检查题目数量与图片数量 - 使用改进的检测逻辑
+            int questionsWithImageReferences = 0;  // 有图片引用的题目
+            int questionsWithMarkers = 0;          // 有图片标记的题目
             int totalMarkersFound = 0;
             
             for (Object questionObj : questions) {
@@ -267,6 +263,11 @@ public class AIUploadService {
                 String content = question.getString("content");
                 
                 if (content != null) {
+                    // 检查是否有图片引用模式
+                    if (hasImageReference(content)) {
+                        questionsWithImageReferences++;
+                    }
+                    
                     // 统计图片标记
                     java.util.regex.Pattern markerPattern = java.util.regex.Pattern.compile("\\{\\{[A-Z_0-9]+\\}\\}");
                     java.util.regex.Matcher matcher = markerPattern.matcher(content);
@@ -277,19 +278,29 @@ public class AIUploadService {
                     
                     totalMarkersFound += markerCount;
                     if (markerCount > 0) {
-                        questionsWithImages++;
+                        questionsWithMarkers++;
                     }
                 }
             }
             
-            // 检查 1: 图片与标记数量不一致
+            // 检查 1: 有图片引用但没有分配图片标记的题目
+            if (questionsWithImageReferences != questionsWithMarkers) {
+                result.addWarning("图片分配不匹配: " + questionsWithImageReferences + "个题目有图片引用，但只有" + questionsWithMarkers + "个题目分配了图片");
+            }
+            
+            // 检查 2: 图片与标记数量不一致  
             if (totalImages != totalMarkersFound) {
                 result.addWarning("图片数量不一致: 有" + totalImages + "张图片，但只有" + totalMarkersFound + "个图片标记");
             }
             
-            // 检查 2: 题目数量与图片数量差异过大
+            // 检查 3: 题目数量与图片数量差异过大
             if (totalImages > questions.size() * 2) {
                 result.addWarning("图片数量异常: 有" + totalImages + "张图片，但只有" + questions.size() + "道题目");
+            }
+            
+            // 检查 4: 图片分配效率
+            if (questionsWithImageReferences > 0 && totalImages > questionsWithImageReferences * 2) {
+                result.addWarning("可能存在多余图片: 有" + questionsWithImageReferences + "个题目需要图片，但文档包含" + totalImages + "张图片");
             }
             
             // 检查 3: 题目内容过短（可能是错误识别）
@@ -789,15 +800,11 @@ public class AIUploadService {
      * 4. 全流程入口（带学科年级约束）
      */
     public ApiRest<?> handleUploadAndSplit(MultipartFile file, String subject, String grade) {
-        return handleUploadAndSplit(file, subject, grade, "smart");
-    }
-    
-    public ApiRest<?> handleUploadAndSplit(MultipartFile file, String subject, String grade, String assignmentStrategy) {
         try {
             logger.info("🔍 开始完整流程诊断 - 文件: {}", file.getOriginalFilename());
             
-            // 1. 先抽文件内容 (使用指定的分配策略)
-            String extractJsonStr = extractTextFromFile(file, true, assignmentStrategy);
+            // 1. 先抽文件内容
+            String extractJsonStr = extractTextFromFile(file, true);
             JSONObject extractBody = JSONObject.parseObject(extractJsonStr);
             
             // 🔍 DIAGNOSTIC: 检查Python返回的内容
@@ -1001,7 +1008,7 @@ public class AIUploadService {
     
 
     /**
-     * 从题目内容中提取图片标记
+     * 从题目内容中提取图片标记 - 支持通用格式
      * 例如：从 "如图所示 {{IMG_001}} 求解..." 中提取 "IMG_001"
      */
     private String extractImageMarkerFromContent(String content) {
@@ -1009,8 +1016,8 @@ public class AIUploadService {
             return null;
         }
         
-        // 使用正则表达式查找新格式的图片标记
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\{\\{IMG_\\d{3}\\}\\}");
+        // 使用正则表达式查找图片标记 (支持更灵活的格式)
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\{\\{IMG_\\d+\\}\\}");
         java.util.regex.Matcher matcher = pattern.matcher(content);
         
         if (matcher.find()) {
@@ -1020,6 +1027,38 @@ public class AIUploadService {
         }
         
         return null;
+    }
+    
+    /**
+     * 检查题目内容是否包含图片引用 - 支持多种引用模式
+     */
+    private boolean hasImageReference(String content) {
+        if (content == null || content.trim().isEmpty()) {
+            return false;
+        }
+        
+        // 支持的图片引用模式
+        String[] patterns = {
+            "图\\s*\\d+",                    // 图1, 图2, 图 3
+            "图\\s*\\d+[-－]\\d+",          // 图5-1, 图5-2
+            "如图\\s*\\d+",                 // 如图1, 如图2
+            "见图\\s*\\d+",                 // 见图1, 见图2
+            "参见图\\s*\\d+",               // 参见图1, 参见图2
+            "附图\\s*[A-Za-z]+",           // 附图A, 附图B
+            "示意图\\s*\\d+",               // 示意图1, 示意图2
+            "Figure\\s*\\d+",              // Figure 1, Figure 2
+            "Fig\\.\\s*\\d+",              // Fig.1, Fig.2
+            "[图图]\\s*[K-Z][-－]?\\d+[-－]?\\d+", // 图K-19-1, 图A-5-2
+            "第\\s*\\d+\\s*题图"            // 第1题图, 第2题图
+        };
+        
+        for (String pattern : patterns) {
+            if (java.util.regex.Pattern.compile(pattern).matcher(content).find()) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
 }

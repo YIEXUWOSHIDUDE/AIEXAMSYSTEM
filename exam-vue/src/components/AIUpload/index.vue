@@ -33,19 +33,6 @@
                 <el-option label="高三" value="高三" />
               </el-select>
             </el-form-item>
-            <el-form-item label="分配策略">
-              <el-radio-group v-model="assignmentStrategy" size="small">
-                <el-radio-button label="smart">智能匹配</el-radio-button>
-                <el-radio-button label="number_based">编号匹配</el-radio-button>
-              </el-radio-group>
-              <el-tooltip effect="dark" placement="top">
-                <div slot="content">
-                  智能匹配：综合文档结构和引用关系<br/>
-                  编号匹配：根据题目和图片编号精确匹配
-                </div>
-                <i class="el-icon-question" style="margin-left: 8px; color: #909399; cursor: help;"></i>
-              </el-tooltip>
-            </el-form-item>
           </el-form>
         </div>
         
@@ -336,7 +323,6 @@ export default {
       // 学科年级选择
       selectedSubject: '',
       selectedGrade: '',
-      assignmentStrategy: 'smart', // 默认使用智能匹配策略
       
       // 上传相关
       uploadUrl: `${process.env.VUE_APP_BASE_API}/exam/api/ai-upload/upload`,
@@ -460,7 +446,7 @@ export default {
       // 执行上传
       const file = fileList[0].raw
       
-      aiUploadQuestions(file, this.selectedSubject, this.selectedGrade, this.assignmentStrategy).then(response => {
+      aiUploadQuestions(file, this.selectedSubject, this.selectedGrade).then(response => {
         this.handleUploadSuccess(response)
       }).catch(error => {
         console.error('上传失败:', error)
@@ -646,7 +632,6 @@ export default {
       // 重置学科年级选择
       this.selectedSubject = ''
       this.selectedGrade = ''
-      this.assignmentStrategy = 'smart'
       
       // 清空文件列表
       if (this.$refs.upload) {

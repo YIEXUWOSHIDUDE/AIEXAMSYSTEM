@@ -45,10 +45,9 @@ export function importExcel(file) {
  * @param file
  * @param subject
  * @param grade
- * @param assignmentStrategy
  */
-export function aiUploadQuestions(file, subject, grade, assignmentStrategy = 'smart') {
-  const data = { subject, grade, assignment_strategy: assignmentStrategy }
+export function aiUploadQuestions(file, subject, grade) {
+  const data = { subject, grade }
   return upload('/exam/api/ai-upload/upload', file, data)
 }
 

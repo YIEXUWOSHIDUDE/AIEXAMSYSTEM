@@ -21,8 +21,7 @@ public class AIUploadController extends BaseController {
     public ApiRest<?> uploadAndSplit(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "subject", required = false) String subject,
-            @RequestParam(value = "grade", required = false) String grade,
-            @RequestParam(value = "assignment_strategy", required = false, defaultValue = "smart") String assignmentStrategy) {
-        return aiUploadService.handleUploadAndSplit(file, subject, grade, assignmentStrategy);
+            @RequestParam(value = "grade", required = false) String grade) {
+        return aiUploadService.handleUploadAndSplit(file, subject, grade);
     }
 }

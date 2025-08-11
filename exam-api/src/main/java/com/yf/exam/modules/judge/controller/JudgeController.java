@@ -124,6 +124,7 @@ public class JudgeController extends BaseController {
         }
     }
 
+
     /**
      * 批量简答题评判（可选功能）
      */
@@ -266,4 +267,5 @@ public class JudgeController extends BaseController {
         public List<ShortAnswerJudgeDTO> getQuestions() { return questions; }
         public void setQuestions(List<ShortAnswerJudgeDTO> questions) { this.questions = questions; }
     }
+
 }
