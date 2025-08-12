@@ -197,31 +197,7 @@ python app.py
 
 ## 🔧 API接口文档
 
-### **AI评判接口**
-```
-POST /exam/api/judge/short-answer
 
-Request:
-{
-  "questionContent": "题目内容",
-  "userAnswer": "学生答案", 
-  "standardAnswer": "标准答案",
-  "knowledgePoint": "知识点",
-  "maxScore": 10.0
-}
-
-Response:
-{
-  "code": 0,
-  "data": {
-    "score": 8.5,
-    "percentage": 85, 
-    "grade": "B",
-    "comment": "评分说明",
-    "maxScore": 10.0
-  }
-}
-```
 
 ### **文档上传接口**
 ```
