@@ -57,17 +57,22 @@ public class JudgeController extends BaseController {
 
             if (response != null) {
                 try {
-                    // Parse and validate response
-                    JSONObject judgeResult = JSONObject.parseObject(response);
+                    // Parse response directly - simplified format
+                    JSONObject judgeResult = JSONObject.parseObject(response.trim());
                     
                     // Ensure user-specified maxScore is preserved
                     judgeResult.put("maxScore", request.getMaxScore());
                     
                     System.out.println("✅ Short answer judging completed successfully");
+                    System.out.println("📊 Result: score=" + judgeResult.get("score") + 
+                                     ", grade=" + judgeResult.get("grade") + 
+                                     ", comment=" + judgeResult.get("comment"));
+                    
                     return super.success(judgeResult);
                 } catch (Exception parseError) {
                     System.err.println("❌ Failed to parse LLM response: " + parseError.getMessage());
-                    return super.failure("评判结果解析失败");
+                    System.err.println("❌ Raw response: " + response);
+                    return super.failure("评判结果解析失败: " + parseError.getMessage());
                 }
             } else {
                 System.err.println("❌ AI service returned null response");
@@ -125,78 +130,6 @@ public class JudgeController extends BaseController {
     }
 
 
-    /**
-     * 批量简答题评判（可选功能）
-     */
-    @PostMapping("/batch-short-answer")
-    public ApiRest<?> judgeBatchShortAnswer(@RequestBody BatchShortAnswerJudgeDTO request) {
-        try {
-            System.out.println("🎯 Received batch short answer judging request:");
-            System.out.println("  📊 Questions count: " + request.getQuestions().size());
-
-            // Validate input
-            if (request.getQuestions() == null || request.getQuestions().isEmpty()) {
-                return super.failure("简答题列表不能为空");
-            }
-
-            // Process each question individually to maintain accuracy
-            Map<String, Object> batchResults = new HashMap<>();
-            int successCount = 0;
-            int totalCount = request.getQuestions().size();
-
-            for (int i = 0; i < request.getQuestions().size(); i++) {
-                ShortAnswerJudgeDTO question = request.getQuestions().get(i);
-                String questionKey = question.getQuestionId() != null ? question.getQuestionId() : "q" + (i + 1);
-                
-                try {
-                    // Call individual judging
-                    ApiRest<?> judgeResult = judgeShortAnswer(question);
-                    if (judgeResult.getCode() == 0) {
-                        batchResults.put(questionKey, judgeResult.getData());
-                        successCount++;
-                    } else {
-                        // Create error result for this question
-                        Map<String, Object> errorResult = new HashMap<>();
-                        errorResult.put("score", 0.0);
-                        errorResult.put("maxScore", question.getMaxScore());
-                        errorResult.put("feedback", "该题评判失败: " + judgeResult.getMsg());
-                        errorResult.put("keyPointsCovered", new ArrayList<String>());
-                        errorResult.put("keyPointsMissed", new ArrayList<String>());
-                        List<String> suggestions = new ArrayList<>();
-                        suggestions.add("请联系老师人工评判");
-                        errorResult.put("suggestions", suggestions);
-                        batchResults.put(questionKey, errorResult);
-                    }
-                } catch (Exception e) {
-                    System.err.println("❌ Failed to judge question " + questionKey + ": " + e.getMessage());
-                    // Create fallback error result
-                    Map<String, Object> errorResult = new HashMap<>();
-                    errorResult.put("score", 0.0);
-                    errorResult.put("maxScore", question.getMaxScore());
-                    errorResult.put("feedback", "评判异常: " + e.getMessage());
-                    errorResult.put("keyPointsCovered", new ArrayList<String>());
-                    errorResult.put("keyPointsMissed", new ArrayList<String>());
-                    List<String> suggestions = new ArrayList<>();
-                    suggestions.add("请检查网络连接后重试");
-                    errorResult.put("suggestions", suggestions);
-                    batchResults.put(questionKey, errorResult);
-                }
-            }
-
-            Map<String, Object> finalResult = new HashMap<>();
-            finalResult.put("totalCount", totalCount);
-            finalResult.put("successCount", successCount);
-            finalResult.put("failureCount", totalCount - successCount);
-            finalResult.put("results", batchResults);
-
-            System.out.println("✅ Batch judging completed: " + successCount + "/" + totalCount);
-            return super.success(finalResult);
-
-        } catch (Exception e) {
-            System.err.println("❌ Batch judging error: " + e.getMessage());
-            return super.failure("批量评判服务异常: " + e.getMessage());
-        }
-    }
 
     // DTO classes
     public static class ShortAnswerJudgeDTO {
@@ -259,13 +192,5 @@ public class JudgeController extends BaseController {
         public void setMaxScore(double maxScore) { this.maxScore = maxScore; }
     }
 
-    public static class BatchShortAnswerJudgeDTO {
-        private List<ShortAnswerJudgeDTO> questions;
-
-        public BatchShortAnswerJudgeDTO() {}
-
-        public List<ShortAnswerJudgeDTO> getQuestions() { return questions; }
-        public void setQuestions(List<ShortAnswerJudgeDTO> questions) { this.questions = questions; }
-    }
 
 }

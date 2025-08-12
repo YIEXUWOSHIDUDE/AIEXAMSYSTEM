@@ -509,97 +509,83 @@ public class PromptConfig {
     /**
      * 主要评分提示词模板 - 用于LLM智能评分
      */
-    public static final String MAIN_GRADING_PROMPT = """
-您是一位经验丰富的{subject}{grade}教师，请对学生的试卷答案进行客观、公正的评分。
-
-**评分要求：**
-1. 从上到下一道题一道题依次评分
-2. **综合点评**（总体表现、优势、具体知识点薄弱点、提升建议）
-3. **每题点评**（题号、题型、题干、学生答案、标准答案、得分/满分、错题请单独写简要点评）
-4. 请根据以下标准判断大题的难易程度，选择题填空题不需要判断，仅在大题评分后标注"难度"：（A最难，D最易）
-   - A：难题。涉及多个知识点、综合性强，解题需较高思维与创新
-   - B：中等偏难。需一定推理分析能力，题目有迷惑性，但不是最高难度  
-   - C：中等。常规解法，考查基础知识或基本技能
-   - D：简单。直接考查课本基础知识，解题步骤少，几乎无难点
-
-5. 请按以下标准为学生的大题答案评分并分档（A/B/C/D），并给出分数百分比：
-   - **A（满分/优秀，90%~100%）**：解题步骤清晰完整，逻辑严密，所有关键点正确，结果正确。有条理、表达清楚，无明显语言或书写错误。展示出深刻理解和综合能力
-   - **B（良好，80%~89%）**：主要步骤完整，只有少量小错误或表达不够简练，结论基本正确。对主要知识点有较好把握，思路基本清晰
-   - **C（及格，60%~79%）**：步骤不全或逻辑有明显疏漏，但部分关键点正确。最终结论或主要推理有误，但表现出一定的理解和努力
-   - **D（不及格，0%~59%）**：步骤混乱、关键知识点严重缺失，逻辑错误较多，结果错误
-
-**试卷信息：**
-科目：{subject}
-年级：{grade}
-学生：{studentName}
-总题数：{questionCount}道题
-
-**题目和答案：**
-{questionsAndAnswers}
-
-请严格按照以上要求进行评分，确保评分客观公正，点评具体有建设性。
-
-**请按照以下JSON格式返回评分结果：**
-{
-  "overallScore": 总分,
-  "overallPercentage": 总分百分比,
-  "overallComment": "综合点评内容",
-  "strengthAreas": ["优势1", "优势2"],
-  "weaknessAreas": ["薄弱点1", "薄弱点2"],
-  "studyRecommendations": ["建议1", "建议2", "建议3"],
-  "questionScores": [
-    {
-      "questionNumber": 1,
-      "questionType": "选择题",
-      "score": 得分,
-      "fullMarks": 满分,
-      "percentage": 百分比,
-      "grade": "A/B/C/D",
-      "difficulty": "A/B/C/D",
-      "comment": "具体点评",
-      "isCorrect": true/false
-    }
-  ]
-}
-""";
+    public static final String MAIN_GRADING_PROMPT = 
+            "您是一位经验丰富的{subject}{grade}教师，请对学生的试卷答案进行客观、公正的评分。\n\n" +
+            "**评分要求：**\n" +
+            "1. 从上到下一道题一道题依次评分\n" +
+            "2. **综合点评**（总体表现、优势、具体知识点薄弱点、提升建议）\n" +
+            "3. **每题点评**（题号、题型、题干、学生答案、标准答案、得分/满分、错题请单独写简要点评）\n" +
+            "4. 请根据以下标准判断大题的难易程度，选择题填空题不需要判断，仅在大题评分后标注\"难度\"：（A最难，D最易）\n" +
+            "   - A：难题。涉及多个知识点、综合性强，解题需较高思维与创新\n" +
+            "   - B：中等偏难。需一定推理分析能力，题目有迷惑性，但不是最高难度\n" +
+            "   - C：中等。常规解法，考查基础知识或基本技能\n" +
+            "   - D：简单。直接考查课本基础知识，解题步骤少，几乎无难点\n\n" +
+            "5. 请按以下标准为学生的大题答案评分并分档（A/B/C/D），并给出分数百分比：\n" +
+            "   - **A（满分/优秀，90%~100%）**：解题步骤清晰完整，逻辑严密，所有关键点正确，结果正确。有条理、表达清楚，无明显语言或书写错误。展示出深刻理解和综合能力\n" +
+            "   - **B（良好，80%~89%）**：主要步骤完整，只有少量小错误或表达不够简练，结论基本正确。对主要知识点有较好把握，思路基本清晰\n" +
+            "   - **C（及格，60%~79%）**：步骤不全或逻辑有明显疏漏，但部分关键点正确。最终结论或主要推理有误，但表现出一定的理解和努力\n" +
+            "   - **D（不及格，0%~59%）**：步骤混乱、关键知识点严重缺失，逻辑错误较多，结果错误\n\n" +
+            "**试卷信息：**\n" +
+            "科目：{subject}\n" +
+            "年级：{grade}\n" +
+            "学生：{studentName}\n" +
+            "总题数：{questionCount}道题\n\n" +
+            "**题目和答案：**\n" +
+            "{questionsAndAnswers}\n\n" +
+            "请严格按照以上要求进行评分，确保评分客观公正，点评具体有建设性。\n\n" +
+            "**请按照以下JSON格式返回评分结果：**\n" +
+            "{\n" +
+            "  \"overallScore\": 总分,\n" +
+            "  \"overallPercentage\": 总分百分比,\n" +
+            "  \"overallComment\": \"综合点评内容\",\n" +
+            "  \"strengthAreas\": [\"优势1\", \"优势2\"],\n" +
+            "  \"weaknessAreas\": [\"薄弱点1\", \"薄弱点2\"],\n" +
+            "  \"studyRecommendations\": [\"建议1\", \"建议2\", \"建议3\"],\n" +
+            "  \"questionScores\": [\n" +
+            "    {\n" +
+            "      \"questionNumber\": 1,\n" +
+            "      \"questionType\": \"选择题\",\n" +
+            "      \"score\": 得分,\n" +
+            "      \"fullMarks\": 满分,\n" +
+            "      \"percentage\": 百分比,\n" +
+            "      \"grade\": \"A/B/C/D\",\n" +
+            "      \"difficulty\": \"A/B/C/D\",\n" +
+            "      \"comment\": \"具体点评\",\n" +
+            "      \"isCorrect\": true/false\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
 
     /**
      * 题目内容模板 - 用于构建单个题目的评分内容
      */
-    public static final String QUESTION_GRADING_TEMPLATE = """
-【第{questionNumber}题】({questionType}) 满分：{fullMarks}分
-题干：{questionContent}
-标准答案：{standardAnswer}
-学生答案：{studentAnswer}
-
-""";
+    public static final String QUESTION_GRADING_TEMPLATE = 
+            "【第{questionNumber}题】({questionType}) 满分：{fullMarks}分\n" +
+            "题干：{questionContent}\n" +
+            "标准答案：{standardAnswer}\n" +
+            "学生答案：{studentAnswer}\n\n";
 
     /**
      * 快速简答题评分提示词 - 用于单题评分
      */
-    public static final String QUICK_SHORT_ANSWER_GRADING_PROMPT = """
-请对这道简答题进行评分：
-
-题目：{questionContent}
-标准答案：{standardAnswer}  
-学生答案：{studentAnswer}
-满分：{fullMarks}分
-
-评分标准：
-- 准确性（60%）：答案内容正确性
-- 完整性（25%）：是否涵盖关键知识点  
-- 表达清晰度（15%）：语言表达和逻辑
-
-返回JSON格式：
-{
-  "score": 具体分数,
-  "percentage": 百分比,
-  "grade": "A/B/C/D",
-  "comment": "评分理由和建议",
-  "keyPointsCovered": ["已掌握要点1", "已掌握要点2"],
-  "keyPointsMissed": ["遗漏要点1", "遗漏要点2"]
-}
-""";
+    public static final String QUICK_SHORT_ANSWER_GRADING_PROMPT = 
+            "请对这道简答题进行评分：\n\n" +
+            "题目：{questionContent}\n" +
+            "标准答案：{standardAnswer}\n" +
+            "学生答案：{studentAnswer}\n" +
+            "满分：{fullMarks}分\n\n" +
+            "评分标准：\n" +
+            "- 准确性（60%）：答案内容正确性\n" +
+            "- 完整性（25%）：是否涵盖关键知识点\n" +
+            "- 表达清晰度（15%）：语言表达和逻辑\n\n" +
+            "**重要：返回纯JSON格式，不要使用LaTeX数学公式或特殊符号，用普通文字描述**\n\n" +
+            "返回JSON格式：\n" +
+            "{\n" +
+            "  \"score\": 具体分数,\n" +
+            "  \"percentage\": 百分比,\n" +
+            "  \"grade\": \"A/B/C/D\",\n" +
+            "  \"comment\": \"简洁的评分理由和建议（用普通文字）\"\n" +
+            "}";
 
     /**
      * 构建完整的评分提示词

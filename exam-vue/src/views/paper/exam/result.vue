@@ -26,14 +26,14 @@
 
         <p>{{ item.sort + 1 }}.{{ item.content }}（得分：{{ item.actualScore }}）</p>
         <p v-if="item.image!=null && item.image!=''">
-          <el-image :src="item.image" style="max-width:100%;" />
+          <el-image :src="item.image" style="max-width:400px; height:auto;" />
         </p>
         <div v-if="item.quType === 1 || item.quType===3">
           <el-radio-group v-model="radioValues[item.id]">
             <el-radio v-for="an in item.answerList" :label="an.id">
               {{ an.abc }}.{{ an.content }}
               <div v-if="an.image!=null && an.image!=''" style="clear: both">
-                <el-image :src="an.image" style="max-width:100%;" />
+                <el-image :src="an.image" style="max-width:300px; height:auto;" />
               </div>
             </el-radio>
           </el-radio-group>
@@ -92,43 +92,11 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="24" style="margin-bottom: 10px;">
+            <el-row :gutter="24" style="margin-bottom: 10px;" v-if="aiJudgeResults[item.id].comment">
               <el-col :span="24">
                 <div class="feedback-section">
-                  <h4><i class="el-icon-chat-dot-round"></i> 详细反馈：</h4>
-                  <p class="feedback-text">{{ aiJudgeResults[item.id].feedback || '暂无反馈' }}</p>
-                </div>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="24" v-if="aiJudgeResults[item.id].keyPointsCovered && aiJudgeResults[item.id].keyPointsCovered.length > 0">
-              <el-col :span="24">
-                <div class="key-points-section">
-                  <h4><i class="el-icon-check"></i> 已掌握要点：</h4>
-                  <el-tag 
-                    v-for="point in aiJudgeResults[item.id].keyPointsCovered" 
-                    :key="point" 
-                    type="success" 
-                    size="small" 
-                    style="margin: 2px;">
-                    {{ point }}
-                  </el-tag>
-                </div>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="24" v-if="aiJudgeResults[item.id].keyPointsMissed && aiJudgeResults[item.id].keyPointsMissed.length > 0">
-              <el-col :span="24">
-                <div class="key-points-section">
-                  <h4><i class="el-icon-close"></i> 遗漏要点：</h4>
-                  <el-tag 
-                    v-for="point in aiJudgeResults[item.id].keyPointsMissed" 
-                    :key="point" 
-                    type="danger" 
-                    size="small" 
-                    style="margin: 2px;">
-                    {{ point }}
-                  </el-tag>
+                  <h4><i class="el-icon-chat-dot-round"></i> 评分说明：</h4>
+                  <p class="feedback-text">{{ aiJudgeResults[item.id].comment }}</p>
                 </div>
               </el-col>
             </el-row>
@@ -168,7 +136,7 @@
           <el-checkbox-group v-model="multiValues[item.id]">
             <el-checkbox v-for="an in item.answerList" :key="an.id" :label="an.id">{{ an.abc }}.{{ an.content }}
               <div v-if="an.image!=null && an.image!=''" style="clear: both">
-                <el-image :src="an.image" style="max-width:100%;" />
+                <el-image :src="an.image" style="max-width:300px; height:auto;" />
               </div>
             </el-checkbox>
           </el-checkbox-group>

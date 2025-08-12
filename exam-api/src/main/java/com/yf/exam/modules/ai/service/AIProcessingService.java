@@ -783,14 +783,24 @@ public class AIProcessingService {
         String standardAnswer = (String) request.get("standardAnswer");
         String userAnswer = (String) request.get("userAnswer");
         String knowledgePoint = (String) request.get("knowledgePoint");
-        Integer maxScore = (Integer) request.get("maxScore");
+        Object maxScoreObj = request.get("maxScore");
+        
+        // Handle both Integer and Double types for maxScore
+        double maxScore;
+        if (maxScoreObj instanceof Integer) {
+            maxScore = ((Integer) maxScoreObj).doubleValue();
+        } else if (maxScoreObj instanceof Double) {
+            maxScore = (Double) maxScoreObj;
+        } else {
+            maxScore = 10.0; // Default fallback
+        }
 
-        return PromptConfig.SHORT_ANSWER_JUDGE_PROMPT + "\n\n" +
+        return PromptConfig.QUICK_SHORT_ANSWER_GRADING_PROMPT + "\n\n" +
                 "题目内容：" + questionContent + "\n" +
-                "标准答案：" + standardAnswer + "\n" +
-                "知识点：" + knowledgePoint + "\n" +
+                "标准答案：" + (standardAnswer != null ? standardAnswer : "无标准答案") + "\n" +
+                "知识点：" + (knowledgePoint != null ? knowledgePoint : "基础知识") + "\n" +
                 "满分：" + maxScore + "分\n" +
-                "学生答案：" + userAnswer;
+                "学生答案：" + (userAnswer != null ? userAnswer : "");
     }
 
     /**

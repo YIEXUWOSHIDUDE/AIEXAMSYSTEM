@@ -69,7 +69,7 @@
               v-for="(imageUrl, index) in getQuestionImages(quData)" 
               :key="'qu-img-' + index"
               :src="imageUrl" 
-              style="max-width:100%; margin-right: 10px; margin-bottom: 10px;" 
+              style="max-width:400px; height:auto; margin-right: 10px; margin-bottom: 10px;" 
               fit="contain"
               :preview-src-list="getQuestionImages(quData)"
               :initial-index="index" />
@@ -83,7 +83,7 @@
                     v-for="(imageUrl, imgIndex) in getAnswerImages(item)" 
                     :key="'radio-img-' + item.id + '-' + imgIndex"
                     :src="imageUrl" 
-                    style="max-width:100%; margin-right: 8px; margin-bottom: 5px;" 
+                    style="max-width:300px; height:auto; margin-right: 8px; margin-bottom: 5px;" 
                     fit="contain"
                     :preview-src-list="getAnswerImages(item)"
                     :initial-index="imgIndex" />
@@ -102,7 +102,7 @@
                     v-for="(imageUrl, imgIndex) in getAnswerImages(item)" 
                     :key="'check-img-' + item.id + '-' + imgIndex"
                     :src="imageUrl" 
-                    style="max-width:100%; margin-right: 8px; margin-bottom: 5px;" 
+                    style="max-width:300px; height:auto; margin-right: 8px; margin-bottom: 5px;" 
                     fit="contain"
                     :preview-src-list="getAnswerImages(item)"
                     :initial-index="imgIndex" />
