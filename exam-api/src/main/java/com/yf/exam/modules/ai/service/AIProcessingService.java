@@ -31,8 +31,7 @@ public class AIProcessingService {
     private KnowledgeOutlineService knowledgeOutlineService;
     
     // Qwen3-32B API配置
-    private static final String QWEN3_API_URL = "http://10.0.201.81:10031/v1/chat/completions";
-    private static final String MODEL_NAME = "qwen3_32b";
+
 
     /**
      * 题目提取 - 从文档中提取题目
@@ -637,7 +636,7 @@ public class AIProcessingService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer EMPTY");
+          
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
 
             logger.info("📤 发送多模态请求到: {}", QWEN3_API_URL);
