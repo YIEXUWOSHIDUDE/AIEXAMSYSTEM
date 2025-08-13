@@ -24,9 +24,12 @@ public class ImageCheckUtils {
         }
 
         // 校验图片地址 - 支持本地上传和MinIO存储
-        boolean isValidUrl = image.startsWith(conf.getUrl()) || 
-                           image.startsWith("http://10.0.201.6:19000/exam-images/");
-        
+        boolean isValidUrl = image.startsWith(conf.getUrl());
+        String minioUrl = System.getenv("MINIO_EXTERNAL_URL");
+        if(StringUtils.isNotBlank(minioUrl)){
+            isValidUrl = isValidUrl || image.startsWith(minioUrl);
+        }
+
         if(!isValidUrl){
             throw new ServiceException(throwMsg);
         }
