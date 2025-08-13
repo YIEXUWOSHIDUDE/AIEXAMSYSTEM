@@ -104,14 +104,20 @@ class DoclingDocument:
 
 app = FastAPI()
 
-# MinIO configuration
+# MinIO configuration from environment variables
+minio_endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+minio_access_key = os.getenv("MINIO_ACCESS_KEY")
+minio_secret_key = os.getenv("MINIO_SECRET_KEY")
+minio_secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
+minio_external_url = os.getenv("MINIO_EXTERNAL_URL", f"http://{minio_endpoint}")
+bucket_name = os.getenv("MINIO_BUCKET", "exam-images")
+
 minio_client = Minio(
-    "10.0.201.6:19000",
-    access_key="rag_flow",
-    secret_key="infini_rag_flow",
-    secure=False
+    minio_endpoint,
+    access_key=minio_access_key,
+    secret_key=minio_secret_key,
+    secure=minio_secure
 )
-bucket_name = "exam-images"
 
 os.makedirs("./temp", exist_ok=True)
 if not minio_client.bucket_exists(bucket_name):
@@ -134,7 +140,7 @@ def save_to_minio(local_path, object_name):
     """Upload to MinIO and return URL"""
     try:
         minio_client.fput_object(bucket_name, object_name, local_path)
-        return f"http://10.0.201.6:19000/{bucket_name}/{object_name}"
+        return f"{minio_external_url}/{bucket_name}/{object_name}"
     except Exception as e:
         print(f"MinIO upload failed: {e}")
         return None
