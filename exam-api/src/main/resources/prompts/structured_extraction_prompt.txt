@@ -50,10 +50,10 @@
   ],
   "images": {
     "img_001": {
-      "id": "img_001",
-      "url": "http://10.0.201.6:19000/exam-images/img_001.png",
-      "type": "docx_embedded"
-    }
+        "id": "img_001",
+        "url": "http://minio.example.com/exam-images/img_001.png",
+        "type": "docx_embedded"
+      }
   }
 }
 ```
@@ -66,7 +66,7 @@
     "quType": 1,
     "level": 1,
     "content": "下列关于函数的描述正确的是？",
-    "image": "http://10.0.201.6:19000/exam-images/img_001.png",
+    "image": "http://minio.example.com/exam-images/img_001.png",
     "analysis": "解析说明",
     "options": [
       {
