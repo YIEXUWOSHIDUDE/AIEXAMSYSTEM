@@ -1,214 +1,204 @@
-# 🤖 AI智能评判系统
+# AI 智能考试系统
 
-基于大语言模型(LLM)的智能考试评判系统，专注于简答题自动评分和智能反馈。
+中文 | [English](README_EN.md)
 
-## 🆕 核心功能
+这是一个面向考试管理场景的 AI 增强系统，在既有考试管理基础上加入文档拆题、简答题评判和智能选题流程。
 
-### 🎯 **AI智能评判**
-- **简答题自动评分**: 基于Qwen3-32B大模型的语义理解评分
-- **实时评判反馈**: 毫秒级响应，即时获得评分结果  
-- **多维度分析**: 准确性(60%)、完整性(25%)、表达清晰度(15%)综合评判
-- **客观公正**: 消除主观偏见，确保评分一致性
+系统由 Vue 管理界面、Spring Boot 业务服务、Python 文档处理服务、MySQL、MinIO，以及兼容 OpenAI 接口格式的 Qwen 模型服务组成。
 
-### 📝 **题目管理增强**
-- **AI文档解析**: 上传Word/PDF文档，AI自动识别并提取题目
-- **图片智能处理**: 支持题目图片的智能识别和合理显示
-- **图文混合支持**: 同时处理文字和图片内容的复杂题目
-- **批量导入优化**: 一键批量上传，自动去除重复内容
+> 本仓库属于工程原型。大模型生成的分数与反馈应作为人工复核的辅助信息，不应直接成为高风险考试的唯一评分依据。
 
-### 🖼️ **界面优化**  
-- **图片尺寸控制**: 题目图片智能缩放，不再占用过多屏幕空间
-- **清洁界面**: 移除冗余的URL显示，只显示实际图片预览
-- **响应式设计**: 适配不同屏幕尺寸的设备使用
+## 本版本的主要增强
 
-## 🛠 技术架构
+- **简答题 AI 评判**：将题目、参考答案、学生答案、知识点和满分传给模型，并返回结构化评分与反馈。
+- **文档导入题库**：解析上传的 DOCX 文档，提取内嵌图片，保留题目与图片的对应关系，再进入题目导入流程。
+- **题目与答案校验**：检查提取结果的字段完整性和答案匹配情况；校验失败时回退到较简单的提取路径。
+- **AI 辅助选题**：结合知识点和难度筛选候选题，仅向模型发送精简后的题目信息；AI 服务异常时回退到随机选择。
+- **考试管理流程**：沿用既有平台中的题库、试卷、考试、用户、角色、成绩和后台管理能力。
 
-### **核心技术栈**
-- **Backend**: Spring Boot + MyBatis Plus + Shiro + MySQL
-- **Frontend**: Vue.js + Element UI
-- **AI Engine**: Qwen3-32B (千问大模型)
-- **Document Processing**: Python + FastAPI + MinIO
+## 系统架构
 
-### **系统架构**
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend       │    │   AI Services   │
-│   (Vue.js)      │◄──►│  (Spring Boot)  │◄──►│   (Qwen3-32B)   │
-│   Port: 8080    │    │   Port: 8101    │    │   Port: 10031   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │  Document API   │
-                       │   (Python)      │
-                       │   Port: 8003    │
-                       └─────────────────┘
+```text
+Vue 2 + Element UI（8080）
+            |
+            | HTTP / JSON
+            v
+Spring Boot API（8101）---------> MySQL
+      |          |
+      |          +--------------> 兼容 OpenAI API 的 Qwen 服务
+      |
+      +-------------------------> Python 文档服务（8003）
+                                      |
+                                      +----> MinIO 图片存储
 ```
 
-## 🌟 AI评判特色
+### 主要数据流
 
-### **智能评分引擎**
-- ✅ **语义理解**: 基于大模型的深度语义分析
-- ✅ **多维评判**: 不仅看答案正确性，还评估表达质量
-- ✅ **个性化反馈**: 针对每个答案提供具体改进建议
-- ✅ **一致性保证**: 相同答案获得相同评分，消除人工偏差
+```text
+上传文档
+  -> Python 提取文本与内嵌图片
+  -> 图片写入 MinIO
+  -> Spring Boot 调用模型生成结构化题目
+  -> 校验题目与答案并写入数据库
 
-### **评分标准**
-- **准确性 (60%)**: 答案内容的正确程度
-- **完整性 (25%)**: 是否涵盖所有关键知识点  
-- **表达清晰度 (15%)**: 语言表达的逻辑性和清晰度
+提交简答题
+  -> Spring Boot 构建带约束的评判提示词
+  -> Qwen 返回结构化 JSON
+  -> API 校验并返回分数、等级和反馈
+```
 
-### **输出格式**
+## 技术栈
+
+| 层级 | 技术 |
+| --- | --- |
+| 前端 | Vue 2、Vue Router、Vuex、Element UI、Axios |
+| 后端 | Java 8、Spring Boot、MyBatis-Plus、Apache Shiro、JWT、Maven |
+| 数据 | MySQL、Druid 连接池 |
+| AI 集成 | 通过兼容 OpenAI Chat Completions 的接口调用 Qwen3-32B |
+| 文档处理 | Python、FastAPI、python-docx、MinIO |
+| 运维支持 | Swagger、Quartz、Spring Boot Actuator |
+
+## 目录结构
+
+```text
+AIEXAMSYSTEM/
+├── exam-api/                         # Spring Boot API 与业务逻辑
+├── exam-vue/                         # Vue 2 管理端与考试界面
+├── extract_questions_with_images.py  # DOCX 文本与图片提取服务
+└── docs/                             # 数据库及部署参考资料
+```
+
+## 环境要求
+
+- JDK 8、Maven 3.6+
+- MySQL 5.7+
+- Node.js 14+、npm
+- Python 3.8+
+- MinIO 或兼容的对象存储
+- 兼容 OpenAI 接口格式的 Qwen 模型服务
+
+仓库内配置包含开发环境专用值。运行或部署前，请替换数据库、对象存储、上传目录和模型服务配置，不要在生产环境复用示例凭据。
+
+## 本地启动
+
+### 1. 初始化 MySQL
+
+创建数据库并导入仓库内的 SQL：
+
+```bash
+mysql -u <用户名> -p <数据库名> < "docs/安装资源/数据库脚本.sql"
+```
+
+随后修改数据源配置：
+
+```text
+exam-api/src/main/resources/application-dev.yml
+```
+
+### 2. 配置模型和文档服务
+
+为 `AIProcessingService` 配置模型地址和模型名称，并在 `extract_questions_with_images.py` 中配置 MinIO 地址、访问凭据和 bucket。
+
+生产部署时，应将这些值迁移到环境变量或外部密钥管理服务，不要继续写在源码中。
+
+### 3. 启动 Python 文档服务
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install fastapi uvicorn minio python-docx python-multipart
+python extract_questions_with_images.py
+```
+
+服务默认监听 `http://localhost:8003`。
+
+### 4. 启动 Spring Boot API
+
+```bash
+cd exam-api
+mvn spring-boot:run
+```
+
+API 默认监听 `http://localhost:8101`。
+
+### 5. 启动 Vue 前端
+
+```bash
+cd exam-vue
+npm install
+npm run dev
+```
+
+开发界面默认位于 `http://localhost:8080`。
+
+## 关键 API
+
+### 上传并拆分文档
+
+```http
+POST /exam/api/ai-upload/upload
+Content-Type: multipart/form-data
+
+file=<文档>
+subject=<可选学科>
+grade=<可选年级>
+```
+
+### 评判简答题
+
+```http
+POST /exam/api/judge/short-answer
+Content-Type: application/json
+```
+
+```json
+{
+  "questionId": "question-001",
+  "questionContent": "请说明操作系统调度器的作用。",
+  "userAnswer": "它从就绪进程中选择一个进程使用 CPU。",
+  "standardAnswer": "调度器根据调度策略从就绪队列中选择下一项运行任务。",
+  "knowledgePoint": "CPU 调度",
+  "maxScore": 10
+}
+```
+
+模型调用成功后，接口会整理为类似以下结构：
+
 ```json
 {
   "score": 8.5,
   "percentage": 85,
   "grade": "B",
-  "comment": "答案基本正确，逻辑清晰，但部分要点表述可以更精确",
-  "maxScore": 10.0
+  "comment": "核心概念正确，可以进一步说明调度策略如何影响选择。",
+  "maxScore": 10
 }
 ```
 
-## 🚀 快速开始
+### 分析整份考试
 
-### **环境要求**
-```bash
-# 基础环境
-JDK 1.8+
-MySQL 5.7+
-Node.js 14+
-Python 3.8+
-
-# AI服务
-Qwen3-32B 大模型服务 (需自行部署)
-MinIO 对象存储服务
+```http
+POST /exam/api/judge/overall-test
+Content-Type: application/json
 ```
 
-### **安装步骤**
+## 可靠性与边界
 
-1. **数据库初始化**
-```sql
--- 导入基础数据
-mysql> source exam.sql
-```
+- 系统将模型结果按 JSON 解析；响应格式错误或服务不可用时，接口会返回失败信息。
+- 文档提取包含校验和回退路径，但复杂排版、公式和少见图片格式仍可能需要人工修正。
+- AI 选题调用或解析失败时会回退到非 AI 选题逻辑。
+- 仓库目前没有足够的基准测试证明评分准确率、延迟、公平性或重复一致性；实际使用前应在带人工评分的代表性数据集上评估。
+- 学生答案和考试数据应遵循部署环境中的隐私与保留政策。
 
-2. **后端启动**
-```bash
-cd exam-api
-mvn clean package
-java -jar target/exam-api.jar
-# 访问: http://localhost:8101
-```
+## 上线前安全检查
 
-3. **前端启动**  
-```bash
-cd exam-vue
-npm install
-npm run dev
-# 访问: http://localhost:8080
-```
+- 轮换所有曾经出现在源码或 Git 历史中的凭据；
+- 将数据库、MinIO 和模型服务凭据移出仓库；
+- 修改所有默认账号和密码；
+- 限制 CORS、上传文件类型、文件大小和管理端接口；
+- 避免在日志中记录学生答案或含敏感数据的提示词；
+- 在 CI 中加入依赖漏洞与密钥扫描。
 
-4. **文档处理服务启动**
-```bash
-cd dist
-python app.py
-# 服务: http://localhost:8003
-```
+## 开源协议
 
-### **默认账号**
-- **管理员**: admin / admin
-- **学员**: person / person
+本项目遵循 [MIT License](LICENSE)。
 
-## 📋 功能使用指南
-
-### **📤 智能文档上传**
-1. 登录管理员账号
-2. 进入 `题库管理` → `题目管理`  
-3. 点击 `AI上传` 按钮
-4. 上传Word/PDF文档
-5. 系统自动解析并导入题目
-
-### **🤖 AI智能评判**
-1. 学生完成简答题答题
-2. 系统自动调用AI评判接口
-3. 实时获得评分结果和详细反馈
-4. 支持批量评判多道题目
-
-### **📊 评判结果查看**
-1. 进入考试结果页面
-2. 查看AI给出的分数和等级
-3. 阅读详细的评分说明
-4. 根据建议改进学习方法
-
-## 🎯 架构设计理念
-
-### **KISS原则 (Keep It Simple, Stupid)**
-- ✅ **简单直接**: 避免过度设计，采用最直接的实现方案
-- ✅ **模块清晰**: 明确的功能边界和职责分离  
-- ✅ **易于维护**: 代码结构清晰，便于后续开发和维护
-
-### **AI集成策略**
-- **直接调用**: Java后端直接调用AI服务，避免复杂的中间层
-- **专业分工**: Python专门处理文档解析，Java处理业务逻辑
-- **错误容错**: AI服务不可用时提供graceful降级
-
-## 📊 技术实现亮点
-
-### **后端优化**
-- **统一AI服务**: `AIProcessingService` 集中管理所有AI调用
-- **简化API**: 移除冗余的批量评判，保持API简洁
-- **类型兼容**: 支持Integer和Double类型的灵活处理
-- **Java8兼容**: 所有代码兼容Java 8，避免版本依赖问题
-
-### **前端优化**
-- **图片预览**: 文件上传组件显示图片缩略图而非URL
-- **尺寸控制**: 题目图片限制最大宽度，提升阅读体验
-- **界面简化**: 移除复杂的key point显示，专注核心信息
-
-### **AI提示词工程**
-- **中文优化**: 专门针对中文简答题评判优化的提示词
-- **格式控制**: 严格的JSON输出格式，避免解析错误
-- **评分标准**: 明确的评分维度和权重分配
-
-## 🤝 开发团队
-
-**AI功能开发**
-- **AI集成**: 基于Qwen3-32B大模型的智能评判功能
-- **架构设计**: KISS原则指导下的简化架构设计  
-- **功能实现**: 文档解析、智能评判、界面优化等功能
-
-## 📞 技术支持
-
-### **问题反馈**
-- **GitHub Issues**: 欢迎提交bug报告和功能建议
-- **技术讨论**: 欢迎贡献代码和优化建议
-
-### **部署支持**
-- **环境配置**: 详细的部署文档和环境要求说明
-- **问题排查**: 常见问题的解决方案和调试方法
-
-## 📄 开源协议
-
-本项目采用开源方式提供，遵循MIT协议。
-
----
-
-**让AI赋能教育评估，让评判更智能更公正！** 🚀🤖
-
-## 🔧 API接口文档
-
-
-
-### **文档上传接口**
-```
-POST /api/extract_questions_with_images
-
-Request: multipart/form-data
-- file: 上传的文档文件
-
-Response: 
-{
-  "questions": [...], // 解析出的题目列表
-  "message": "解析成功"
-}
-```
